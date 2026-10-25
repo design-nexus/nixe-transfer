@@ -1,0 +1,13 @@
+[package]
+name = "transfer-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+transfer-core = { path = "../transfer-core" }
+transfer-rclone = { path = "../transfer-rclone" }
+anyhow.workspace = true
+rusqlite.workspace = true
+secret-service.workspace = true
+serde_json.workspace = true

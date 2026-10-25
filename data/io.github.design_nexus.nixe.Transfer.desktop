@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Transfer
+GenericName=File Transfer Client
+Comment=Browse and transfer files between local and remote locations
+Exec=nixe-transfer
+Icon=io.github.design_nexus.nixe.Transfer
+Terminal=false
+StartupNotify=true
+StartupWMClass=io.github.design_nexus.nixe.Transfer
+Categories=Network;FileTransfer;GTK;
+Keywords=sftp;ftp;ftps;webdav;transfer;sync;

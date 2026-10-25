@@ -1,0 +1,22 @@
+[package]
+name = "nixe-transfer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+transfer-core = { path = "../../crates/transfer-core" }
+transfer-rclone = { path = "../../crates/transfer-rclone" }
+transfer-storage = { path = "../../crates/transfer-storage" }
+transfer-ipc = { path = "../../crates/transfer-ipc" }
+nixe-core = { git = "https://github.com/design-nexus/nixe-core.git", rev = "7cd0be5d09cd1d91510794f58bbc720605951c12" }
+nixe-ui = { git = "https://github.com/design-nexus/nixe-design.git", rev = "609c1d2a5af41a8ee3b76ba23611eb30d95a4743" }
+nixe-theme = { git = "https://github.com/design-nexus/nixe-design.git", rev = "609c1d2a5af41a8ee3b76ba23611eb30d95a4743" }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
+anyhow.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+zbus.workspace = true
+tracing-subscriber = "0.3"

@@ -1,0 +1,18 @@
+[package]
+name = "nixe-transferd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+transfer-core = { path = "../../crates/transfer-core" }
+transfer-rclone = { path = "../../crates/transfer-rclone" }
+transfer-storage = { path = "../../crates/transfer-storage" }
+transfer-ipc = { path = "../../crates/transfer-ipc" }
+anyhow.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+zbus.workspace = true
+tracing-subscriber = "0.3"

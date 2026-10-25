@@ -1,0 +1,10 @@
+window.transfer-window { font-family: "JetBrains Mono", monospace; }
+window.transfer-window .transfer-toolbar, window.transfer-window .pane-controls { min-height: 46px; padding: 0 12px; border-bottom: 1px solid @hairline; }
+window.transfer-window .transfer-pane { min-width: 280px; }
+window.transfer-window .transfer-pane:first-child { border-right: 1px solid @hairline; }
+window.transfer-window .transfer-pane entry { margin: 6px 10px; }
+window.transfer-window .transfer-actions { padding: 12px 4px; border-right: 1px solid @hairline; }
+window.transfer-window .file-list row { min-height: 35px; padding: 4px 10px; }
+window.transfer-window .queue-head { padding: 6px 12px; border-top: 1px solid @hairline; color: @theme_dim_text; }
+window.transfer-window .job-row { padding: 2px 12px; }
+window.transfer-window .transfer-status { min-height: 34px; padding: 0 12px; color: @theme_dim_text; border-top: 1px solid @hairline; }
