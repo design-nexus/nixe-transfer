@@ -433,8 +433,16 @@ async fn run_command(
             }
             line = lines.next_line() => match line {
                 Ok(Some(line)) => {
-                    let msg = serde_json::from_str::<serde_json::Value>(&line).ok()
-                        .and_then(|v| v.get("msg").and_then(|m| m.as_str()).map(str::to_owned)).unwrap_or(line);
+                    let value = serde_json::from_str::<serde_json::Value>(&line).ok();
+                    if let Some(stats) = value.as_ref().and_then(|v| v.get("stats")) {
+                        let bytes = stats.get("bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let total_bytes = stats.get("totalBytes").and_then(|v| v.as_u64());
+                        let speed_bytes_per_sec = stats.get("speed").and_then(|v| v.as_f64());
+                        let eta_seconds = stats.get("eta").and_then(|v| v.as_f64()).map(|n| n.max(0.0).ceil() as u64);
+                        let _ = events.send(Event::Metrics { bytes, total_bytes, speed_bytes_per_sec, eta_seconds });
+                    }
+                    let msg = value.as_ref().and_then(|v| v.get("msg").and_then(|m| m.as_str()))
+                        .map(str::to_owned).unwrap_or(line);
                     if msg.contains("Transferred:") || msg.contains('%') { let _ = events.send(Event::Progress(msg.clone())); }
                     if msg.to_lowercase().contains("error") { last_error = msg; }
                 }
@@ -703,13 +711,19 @@ mod tests {
         )
         .await;
         let mut result = None;
+        let mut metrics = false;
         while let Some(event) = receiver.recv().await {
-            if let Event::Finished(done) = event {
-                result = Some(done);
-                break;
+            match event {
+                Event::Metrics { bytes, .. } if bytes > 0 => metrics = true,
+                Event::Finished(done) => {
+                    result = Some(done);
+                    break;
+                }
+                _ => {}
             }
         }
         result.unwrap().unwrap();
+        assert!(metrics, "rclone did not report transfer metrics");
         assert_eq!(
             std::fs::read(target.join("snow ☃.txt")).unwrap(),
             b"transfer works"

@@ -23,7 +23,8 @@ location.
 `Transfer1` uses bus/interface `io.github.design_nexus.nixe.Transfer1` and
 object `/io/github/design_nexus/nixe/Transfer1`. `Enqueue` accepts source and
 destination `Location` JSON and returns a job ID. `ListJobs` returns
-`JobSnapshot` JSON. `Pause`, `Resume`, `Cancel`, `Retry`, and `ClearCompleted`
+`JobSnapshot` JSON with byte counts, speed, and ETA when rclone reports them.
+`Pause`, `Resume`, `Cancel`, `Retry`, and `ClearCompleted`
 control the persisted queue; `Changed` signals updates. This interface contains
 paths and status, never credentials. Breaking changes require `Transfer2`.
 `PreviewSync` returns a dry-run change report. `EnqueueSync` accepts its
@@ -71,7 +72,7 @@ Future direct Nixe Cloud integration will use public Cloud APIs or mount paths
 without reading Cloud's private credentials. A copy into a Cloud FUSE mount is
 not yet treated as proof that the cloud upload itself finished.
 
-Saved workflows support include/exclude patterns, a bandwidth limit, and
-checksum comparison where available. A dry-run comparison is a plan, not a
+Saved workflows support include/exclude patterns, a bandwidth limit, bounded
+network retries, and checksum comparison where available. A dry-run comparison is a plan, not a
 filesystem snapshot: providers can change between the final comparison and
 the actual operation. Scheduling remains future work.

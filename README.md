@@ -28,10 +28,13 @@ and preserve conflicting versions by default. The first run requires a chosen
 resync preference and confirmation. All workflow jobs run in the background
 and stop when the previewed directory state changes before execution.
 
-The disposable integration checks cover local, SFTP, FTP, and WebDAV uploads and
-downloads. FTPS uses rclone's explicit or implicit TLS modes, but a compatible
-disposable FTPS server was not available for an end-to-end check. Connection
-tabs and drag-and-drop remain later milestones.
+The browser has independent connection tabs, back/forward history, breadcrumbs,
+sorting, filtering, hidden-file controls, context actions, and drag-and-drop
+copying between panes or from local file managers. The collapsible queue shows
+progress, speed, ETA, retries, and errors. The disposable integration checks
+cover local, SFTP, FTP, and WebDAV uploads and downloads. FTPS uses rclone's
+explicit or implicit TLS modes, but a compatible disposable FTPS server was
+not available for an end-to-end check.
 
 Targeted service check: `cargo build --locked -p nixe-transferd` followed by
 `dbus-run-session -- python3 tests/service.py`. It uses temporary data and a

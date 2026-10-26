@@ -81,7 +81,7 @@ pub fn load_workflows() -> Result<Vec<SyncWorkflow>> {
     let mut workflows: Vec<SyncWorkflow> = values
         .map(|v| Ok(serde_json::from_str(&v?)?))
         .collect::<Result<_>>()?;
-    workflows.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    workflows.sort_by_key(|a| a.name.to_lowercase());
     Ok(workflows)
 }
 

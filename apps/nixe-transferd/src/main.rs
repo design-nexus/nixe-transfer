@@ -225,6 +225,10 @@ impl State {
                     }
                     job.status = JobStatus::Running;
                     job.progress = "Connecting…".into();
+                    job.bytes = 0;
+                    job.total_bytes = None;
+                    job.speed_bytes_per_sec = None;
+                    job.eta_seconds = None;
                     Ok(())
                 })
                 .await;
@@ -272,6 +276,10 @@ impl State {
                             "Network interruption; retry {} of {retry_limit}",
                             job.retries
                         );
+                        job.bytes = 0;
+                        job.total_bytes = None;
+                        job.speed_bytes_per_sec = None;
+                        job.eta_seconds = None;
                         Ok(())
                     })
                     .await;
@@ -328,7 +336,7 @@ impl State {
             let current = store::get_workflow(&workflow.id)
                 .map_err(|e| TransferError::Backend(e.to_string()))?
                 .ok_or_else(|| TransferError::Conflict("Workflow was deleted".into()))?;
-            if current != *workflow {
+            if current != **workflow {
                 return Err(TransferError::Conflict(
                     "Workflow changed since queueing; preview again".into(),
                 ));
@@ -359,7 +367,7 @@ impl State {
                     preview_fingerprint,
                 } => {
                     transfer_rclone::run_workflow(
-                        workflow,
+                        *workflow,
                         preview_fingerprint,
                         credentials,
                         tx,
@@ -375,6 +383,22 @@ impl State {
                     let _ = self
                         .update(&job.id, |job| {
                             job.progress = text.replace('\n', " ");
+                            Ok(())
+                        })
+                        .await;
+                }
+                TransferEvent::Metrics {
+                    bytes,
+                    total_bytes,
+                    speed_bytes_per_sec,
+                    eta_seconds,
+                } => {
+                    let _ = self
+                        .update(&job.id, |job| {
+                            job.bytes = bytes;
+                            job.total_bytes = total_bytes;
+                            job.speed_bytes_per_sec = speed_bytes_per_sec;
+                            job.eta_seconds = eta_seconds;
                             Ok(())
                         })
                         .await;
@@ -466,6 +490,10 @@ impl Service {
             created_at: now(),
             updated_at: now(),
             operation: JobOperation::Copy,
+            bytes: 0,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
         };
         store::save_job(&job).map_err(error)?;
         self.0.jobs.lock().await.insert(id.clone(), job);
@@ -530,6 +558,10 @@ impl Service {
                 mode,
                 preview_fingerprint: fingerprint.to_owned(),
             },
+            bytes: 0,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
         };
         store::save_job(&job).map_err(error)?;
         self.0.jobs.lock().await.insert(id.clone(), job);
@@ -566,9 +598,13 @@ impl Service {
             created_at: now(),
             updated_at: now(),
             operation: JobOperation::Workflow {
-                workflow,
+                workflow: Box::new(workflow),
                 preview_fingerprint: fingerprint.to_owned(),
             },
+            bytes: 0,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
         };
         store::save_job(&job).map_err(error)?;
         self.0.jobs.lock().await.insert(id.clone(), job);
@@ -639,6 +675,10 @@ impl Service {
                 job.retries += 1;
                 job.status = JobStatus::Queued;
                 job.progress = "Queued".into();
+                job.bytes = 0;
+                job.total_bytes = None;
+                job.speed_bytes_per_sec = None;
+                job.eta_seconds = None;
                 Ok(())
             })
             .await

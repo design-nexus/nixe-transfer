@@ -9,22 +9,59 @@ use transfer_storage as store;
 mod workflows;
 
 const APP_ID: &str = "io.github.design_nexus.nixe.Transfer";
+const CONTROL_SIZE: i32 = 36;
+
+fn square_control(widget: &impl IsA<gtk::Widget>) {
+    widget.add_css_class("square-button");
+    widget.set_size_request(CONTROL_SIZE, CONTROL_SIZE);
+    widget.set_halign(gtk::Align::Center);
+    widget.set_valign(gtk::Align::Center);
+}
 
 struct Pane {
     location: Location,
+    history: Vec<Location>,
+    history_position: usize,
     entries: Vec<FileEntry>,
     selector: gtk::DropDown,
+    breadcrumb: gtk::Box,
     path: gtk::Entry,
+    path_stack: gtk::Stack,
     filter: gtk::SearchEntry,
+    filter_revealer: gtk::Revealer,
     sort: gtk::DropDown,
+    hidden: gtk::CheckButton,
     list: gtk::ListBox,
+    back: gtk::Button,
+    forward: gtk::Button,
     up: gtk::Button,
+    choose_local: gtk::Button,
     refresh: gtk::Button,
+}
+#[derive(Clone)]
+struct TabSnapshot {
+    locations: [Location; 2],
+    histories: [Vec<Location>; 2],
+    positions: [usize; 2],
+    filters: [String; 2],
+    sorts: [u32; 2],
+    hidden: [bool; 2],
 }
 struct State {
     panes: Vec<Pane>,
+    tabs: Vec<TabSnapshot>,
+    active_tab: usize,
+    active_pane: usize,
+    restoring_tab: bool,
+    tab_strip: gtk::Box,
     profiles: Vec<ConnectionProfile>,
     queue: gtk::Box,
+    empty_queue: gtk::Label,
+    queue_revealer: gtk::Revealer,
+    queue_toggle: gtk::Button,
+    clear_completed: gtk::Button,
+    activity: gtk::Label,
+    activity_spinner: gtk::Spinner,
     status: gtk::Label,
     jobs: HashMap<String, JobView>,
     runtime: Arc<tokio::runtime::Runtime>,
@@ -47,6 +84,8 @@ struct SyncDialog {
 struct JobView {
     row: gtk::Box,
     status: gtk::Label,
+    detail: gtk::Label,
+    progress: gtk::ProgressBar,
     retry: gtk::Button,
     pause: gtk::Button,
     cancel: gtk::Button,
@@ -104,7 +143,7 @@ fn build(app: &gtk::Application) {
     nixe_ui::keys::install(
         &window,
         nixe_ui::keys::Common {
-            close: true,
+            close: false,
             ..Default::default()
         },
     );
@@ -118,67 +157,119 @@ fn build(app: &gtk::Application) {
     );
     let (sender, receiver) = std::sync::mpsc::channel();
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     toolbar.add_css_class("transfer-toolbar");
-    let title = gtk::Label::new(Some("TRANSFER"));
-    title.add_css_class("dim-label");
-    toolbar.append(&title);
-    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
-    toolbar.append(&spacer);
-    let new_connection = gtk::Button::with_label("New connection");
+    let activity_spinner = gtk::Spinner::new();
+    let activity = gtk::Label::new(Some("No active transfers"));
+    activity.add_css_class("dim-label");
+    let tab_strip = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    tab_strip.add_css_class("transfer-tabs");
+    let tab_scroll = gtk::ScrolledWindow::builder()
+        .child(&tab_strip)
+        .hexpand(true)
+        .min_content_width(100)
+        .build();
+    tab_scroll.set_policy(gtk::PolicyType::External, gtk::PolicyType::Never);
+    toolbar.append(&tab_scroll);
+    let to_right = gtk::Button::from_icon_name("go-next-symbolic");
+    square_control(&to_right);
+    to_right.set_tooltip_text(Some("Copy selected items from left to right"));
+    toolbar.append(&to_right);
+    let to_left = gtk::Button::from_icon_name("go-previous-symbolic");
+    square_control(&to_left);
+    to_left.set_tooltip_text(Some("Copy selected items from right to left"));
+    toolbar.append(&to_left);
+    let divider = gtk::Separator::new(gtk::Orientation::Vertical);
+    divider.add_css_class("toolbar-divider");
+    toolbar.append(&divider);
+    let new_connection = gtk::Button::from_icon_name("network-server-symbolic");
+    square_control(&new_connection);
+    new_connection.set_tooltip_text(Some("Create a server connection"));
     toolbar.append(&new_connection);
-    let import_remote = gtk::Button::with_label("Import rclone remote");
+    let import_remote = gtk::Button::from_icon_name("document-open-symbolic");
+    square_control(&import_remote);
+    import_remote.set_tooltip_text(Some("Import a remote from the user rclone configuration"));
     toolbar.append(&import_remote);
-    let sync_folders = gtk::Button::with_label("Sync folders");
+    let sync_folders = gtk::Button::from_icon_name("emblem-synchronizing-symbolic");
+    square_control(&sync_folders);
+    sync_folders.set_tooltip_text(Some("Synchronize the current pane locations"));
     toolbar.append(&sync_folders);
-    let workflows = gtk::Button::with_label("Workflows");
+    let workflows = gtk::Button::from_icon_name("view-list-symbolic");
+    square_control(&workflows);
+    workflows.set_tooltip_text(Some("Saved workflows"));
     toolbar.append(&workflows);
+    let search_button = gtk::Button::from_icon_name("system-search-symbolic");
+    square_control(&search_button);
+    search_button.set_tooltip_text(Some("Search the active pane (Ctrl+F)"));
+    toolbar.append(&search_button);
     root.append(&toolbar);
     let browser = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     browser.set_hexpand(true);
     browser.set_vexpand(true);
+    browser.set_homogeneous(true);
     let (left_ui, left) = make_pane(&profiles);
     let (right_ui, right) = make_pane(&profiles);
     browser.append(&left_ui);
-    let actions = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    actions.add_css_class("transfer-actions");
-    let to_right = gtk::Button::with_label("→");
-    to_right.set_tooltip_text(Some("Copy selected items to the right"));
-    let to_left = gtk::Button::with_label("←");
-    to_left.set_tooltip_text(Some("Copy selected items to the left"));
-    actions.append(&to_right);
-    actions.append(&to_left);
-    browser.append(&actions);
     browser.append(&right_ui);
     root.append(&browser);
     let queue_header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     queue_header.add_css_class("queue-head");
-    let queue_head = gtk::Label::new(Some("TRANSFERS"));
-    queue_head.set_xalign(0.0);
-    queue_head.set_hexpand(true);
-    queue_header.append(&queue_head);
-    let clear_completed = gtk::Button::with_label("Clear completed");
+    let section = gtk::Label::new(Some("TRANSFERS"));
+    section.add_css_class("dim-label");
+    queue_header.append(&section);
+    let queue_toggle = gtk::Button::from_icon_name("pan-end-symbolic");
+    square_control(&queue_toggle);
+    queue_header.append(&queue_toggle);
+    let queue_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    queue_spacer.set_hexpand(true);
+    queue_header.append(&queue_spacer);
+    queue_header.append(&activity_spinner);
+    queue_header.append(&activity);
+    let clear_completed = gtk::Button::from_icon_name("edit-clear-symbolic");
+    square_control(&clear_completed);
+    clear_completed.set_tooltip_text(Some("Clear completed transfers"));
+    clear_completed.set_sensitive(false);
     queue_header.append(&clear_completed);
     root.append(&queue_header);
     let queue = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    let empty_queue = gtk::Label::new(Some("No transfers yet"));
+    empty_queue.add_css_class("queue-empty");
+    empty_queue.set_xalign(0.0);
+    queue.append(&empty_queue);
     let queue_scroll = gtk::ScrolledWindow::builder()
         .child(&queue)
         .min_content_height(80)
         .max_content_height(160)
         .vexpand(false)
         .build();
+    queue_scroll.add_css_class("transfer-queue-view");
     queue_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::External);
-    root.append(&queue_scroll);
+    let queue_revealer = gtk::Revealer::new();
+    queue_revealer.set_reveal_child(false);
+    queue_revealer.set_child(Some(&queue_scroll));
+    root.append(&queue_revealer);
     let status = gtk::Label::new(Some("Choose a location in each pane."));
     status.add_css_class("transfer-status");
     status.set_xalign(0.0);
     root.append(&status);
     window.set_child(Some(&root));
+    let panes = vec![left, right];
+    let first_tab = TabSnapshot::from_panes(&panes);
     let state = Rc::new(RefCell::new(State {
-        panes: vec![left, right],
+        panes,
+        tabs: vec![first_tab],
+        active_tab: 0,
+        active_pane: 0,
+        restoring_tab: false,
+        tab_strip,
         profiles,
         queue,
+        empty_queue,
+        queue_revealer: queue_revealer.clone(),
+        queue_toggle: queue_toggle.clone(),
+        clear_completed: clear_completed.clone(),
+        activity,
+        activity_spinner,
         status,
         jobs: HashMap::new(),
         runtime,
@@ -190,6 +281,88 @@ fn build(app: &gtk::Application) {
     for index in 0..2 {
         connect_pane(state.clone(), index);
         refresh(state.clone(), index);
+    }
+    render_tabs(state.clone());
+    {
+        let revealer = queue_revealer.clone();
+        queue_toggle.connect_clicked(move |button| {
+            let show = !revealer.reveals_child();
+            revealer.set_reveal_child(show);
+            button.set_icon_name(if show {
+                "pan-down-symbolic"
+            } else {
+                "pan-end-symbolic"
+            });
+        });
+    }
+    {
+        let s = state.clone();
+        search_button.connect_clicked(move |_| {
+            let index = s.borrow().active_pane;
+            focus_filter(&s, index);
+        });
+    }
+    {
+        let s = state.clone();
+        let w = window.clone();
+        let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        keys.connect_key_pressed(move |_, key, _, modifiers| {
+            let ctrl = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
+            let alt = modifiers.contains(gtk::gdk::ModifierType::ALT_MASK);
+            match key {
+                gtk::gdk::Key::q if ctrl => w.close(),
+                gtk::gdk::Key::w if ctrl => {
+                    if s.borrow().tabs.len() > 1 {
+                        let active = s.borrow().active_tab;
+                        close_tab(s.clone(), active);
+                    } else {
+                        w.close();
+                    }
+                }
+                gtk::gdk::Key::t if ctrl => new_tab(s.clone()),
+                gtk::gdk::Key::Tab if ctrl => {
+                    let next = {
+                        let state = s.borrow();
+                        (state.active_tab + 1) % state.tabs.len()
+                    };
+                    switch_tab(s.clone(), next);
+                }
+                gtk::gdk::Key::f if ctrl => {
+                    let active = s.borrow().active_pane;
+                    focus_filter(&s, active);
+                }
+                gtk::gdk::Key::l if ctrl => {
+                    let active = s.borrow().active_pane;
+                    focus_path(&s, active);
+                }
+                gtk::gdk::Key::h if ctrl => {
+                    let active = s.borrow().active_pane;
+                    let hidden = s.borrow().panes[active].hidden.clone();
+                    hidden.set_active(!hidden.is_active());
+                }
+                gtk::gdk::Key::r if ctrl => {
+                    let active = s.borrow().active_pane;
+                    refresh(s.clone(), active);
+                }
+                gtk::gdk::Key::Left if alt => {
+                    let active = s.borrow().active_pane;
+                    go_history(s.clone(), active, -1);
+                }
+                gtk::gdk::Key::Right if alt => {
+                    let active = s.borrow().active_pane;
+                    go_history(s.clone(), active, 1);
+                }
+                gtk::gdk::Key::F5 => {
+                    refresh(s.clone(), 0);
+                    refresh(s.clone(), 1);
+                }
+                gtk::gdk::Key::F1 => show_shortcuts(&w),
+                _ => return glib::Propagation::Proceed,
+            }
+            glib::Propagation::Stop
+        });
+        window.add_controller(keys);
     }
     {
         let s = state.clone();
@@ -239,6 +412,229 @@ fn build(app: &gtk::Application) {
     window.present();
 }
 
+fn show_shortcuts(window: &gtk::ApplicationWindow) {
+    gtk::AlertDialog::builder()
+        .message("Transfer shortcuts")
+        .detail("Ctrl+T  New tab\nCtrl+W  Close tab\nCtrl+Tab  Next tab\nCtrl+F  Filter active pane\nCtrl+L  Edit location\nAlt+Left/Right  Browse history\nCtrl+H  Toggle hidden files\nCtrl+R / F5  Refresh\nCtrl+Q  Close Transfer")
+        .buttons(["Close"])
+        .build()
+        .show(Some(window));
+}
+
+fn focus_filter(state: &Rc<RefCell<State>>, index: usize) {
+    let state = state.borrow();
+    let pane = &state.panes[index];
+    pane.filter_revealer.set_reveal_child(true);
+    pane.filter.grab_focus();
+}
+
+fn focus_path(state: &Rc<RefCell<State>>, index: usize) {
+    let state = state.borrow();
+    let pane = &state.panes[index];
+    pane.path_stack.set_visible_child_name("entry");
+    pane.path.grab_focus();
+    pane.path.select_region(0, -1);
+}
+
+impl TabSnapshot {
+    fn from_panes(panes: &[Pane]) -> Self {
+        Self {
+            locations: [panes[0].location.clone(), panes[1].location.clone()],
+            histories: [panes[0].history.clone(), panes[1].history.clone()],
+            positions: [panes[0].history_position, panes[1].history_position],
+            filters: [
+                panes[0].filter.text().to_string(),
+                panes[1].filter.text().to_string(),
+            ],
+            sorts: [panes[0].sort.selected(), panes[1].sort.selected()],
+            hidden: [panes[0].hidden.is_active(), panes[1].hidden.is_active()],
+        }
+    }
+}
+
+fn tab_location_label(location: &Location, profiles: &[ConnectionProfile]) -> String {
+    let label = match location {
+        Location::Local(path) => path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Local".into()),
+        Location::Remote { profile_id, .. } => profiles
+            .iter()
+            .find(|p| &p.id == profile_id)
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "Remote".into()),
+    };
+    if label.chars().count() > 18 {
+        format!("{}…", label.chars().take(17).collect::<String>())
+    } else {
+        label
+    }
+}
+
+fn render_tabs(state: Rc<RefCell<State>>) {
+    let (strip, tabs, active, profiles) = {
+        let s = state.borrow();
+        (
+            s.tab_strip.clone(),
+            s.tabs.clone(),
+            s.active_tab,
+            s.profiles.clone(),
+        )
+    };
+    while let Some(child) = strip.first_child() {
+        strip.remove(&child);
+    }
+    for (index, tab) in tabs.iter().enumerate() {
+        let group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        group.add_css_class("transfer-tab");
+        if index == active {
+            group.add_css_class("active");
+        }
+        let label = format!(
+            "{}  →  {}",
+            tab_location_label(&tab.locations[0], &profiles),
+            tab_location_label(&tab.locations[1], &profiles)
+        );
+        let select = gtk::Button::with_label(&label);
+        select.set_tooltip_text(Some(&format!(
+            "{} → {}",
+            location_name(&tab.locations[0], &profiles),
+            location_name(&tab.locations[1], &profiles)
+        )));
+        let close = gtk::Button::from_icon_name("window-close-symbolic");
+        square_control(&close);
+        close.set_tooltip_text(Some("Close tab"));
+        close.set_sensitive(tabs.len() > 1);
+        group.append(&select);
+        group.append(&close);
+        strip.append(&group);
+        {
+            let s = state.clone();
+            select.connect_clicked(move |_| switch_tab(s.clone(), index));
+        }
+        {
+            let s = state.clone();
+            close.connect_clicked(move |_| close_tab(s.clone(), index));
+        }
+    }
+    let add = gtk::Button::from_icon_name("list-add-symbolic");
+    square_control(&add);
+    add.set_tooltip_text(Some("New tab (Ctrl+T)"));
+    strip.append(&add);
+    add.connect_clicked(move |_| new_tab(state.clone()));
+}
+
+fn save_active_tab(state: &mut State) {
+    let snapshot = TabSnapshot::from_panes(&state.panes);
+    state.tabs[state.active_tab] = snapshot;
+}
+
+fn restore_tab(state: Rc<RefCell<State>>, index: usize) {
+    let (tab, selectors, filters, sorts, hidden, profiles) = {
+        let mut s = state.borrow_mut();
+        if index >= s.tabs.len() {
+            return;
+        }
+        s.active_tab = index;
+        s.active_pane = 0;
+        s.restoring_tab = true;
+        (
+            s.tabs[index].clone(),
+            [s.panes[0].selector.clone(), s.panes[1].selector.clone()],
+            [s.panes[0].filter.clone(), s.panes[1].filter.clone()],
+            [s.panes[0].sort.clone(), s.panes[1].sort.clone()],
+            [s.panes[0].hidden.clone(), s.panes[1].hidden.clone()],
+            s.profiles.clone(),
+        )
+    };
+    for pane_index in 0..2 {
+        let selected = match &tab.locations[pane_index] {
+            Location::Local(_) => 0,
+            Location::Remote { profile_id, .. } => profiles
+                .iter()
+                .position(|p| &p.id == profile_id)
+                .map(|i| i as u32 + 1)
+                .unwrap_or(0),
+        };
+        selectors[pane_index].set_selected(selected);
+        filters[pane_index].set_text(&tab.filters[pane_index]);
+        sorts[pane_index].set_selected(tab.sorts[pane_index]);
+        hidden[pane_index].set_active(tab.hidden[pane_index]);
+    }
+    {
+        let mut s = state.borrow_mut();
+        for pane_index in 0..2 {
+            s.panes[pane_index].location = tab.locations[pane_index].clone();
+            s.panes[pane_index].history = tab.histories[pane_index].clone();
+            s.panes[pane_index].history_position = tab.positions[pane_index];
+            s.panes[pane_index].entries.clear();
+        }
+        s.restoring_tab = false;
+    }
+    for pane_index in 0..2 {
+        render_pane(&state, pane_index);
+        refresh(state.clone(), pane_index);
+    }
+    render_tabs(state);
+}
+
+fn switch_tab(state: Rc<RefCell<State>>, index: usize) {
+    if index == state.borrow().active_tab {
+        return;
+    }
+    save_active_tab(&mut state.borrow_mut());
+    restore_tab(state, index);
+}
+
+fn new_tab(state: Rc<RefCell<State>>) {
+    let index = {
+        let mut s = state.borrow_mut();
+        save_active_tab(&mut s);
+        let copy = s.tabs[s.active_tab].clone();
+        s.tabs.push(copy);
+        s.tabs.len() - 1
+    };
+    restore_tab(state, index);
+}
+
+fn close_tab(state: Rc<RefCell<State>>, index: usize) {
+    let next = {
+        let mut s = state.borrow_mut();
+        if s.tabs.len() <= 1 || index >= s.tabs.len() {
+            return;
+        }
+        save_active_tab(&mut s);
+        s.tabs.remove(index);
+        if index < s.active_tab {
+            s.active_tab -= 1;
+        } else if index == s.active_tab {
+            s.active_tab = s.active_tab.min(s.tabs.len() - 1);
+        }
+        s.active_tab
+    };
+    restore_tab(state, next);
+}
+
+fn go_history(state: Rc<RefCell<State>>, index: usize, offset: isize) {
+    let changed = {
+        let mut s = state.borrow_mut();
+        let pane = &mut s.panes[index];
+        let next = pane.history_position as isize + offset;
+        if next < 0 || next >= pane.history.len() as isize {
+            false
+        } else {
+            pane.history_position = next as usize;
+            pane.location = pane.history[pane.history_position].clone();
+            save_active_tab(&mut s);
+            true
+        }
+    };
+    if changed {
+        refresh(state.clone(), index);
+        render_tabs(state);
+    }
+}
+
 fn make_pane(profiles: &[ConnectionProfile]) -> (gtk::Box, Pane) {
     let box_ = gtk::Box::new(gtk::Orientation::Vertical, 0);
     box_.add_css_class("transfer-pane");
@@ -254,27 +650,116 @@ fn make_pane(profiles: &[ConnectionProfile]) -> (gtk::Box, Pane) {
     );
     let refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let selector = gtk::DropDown::from_strings(&refs);
+    selector.add_css_class("location-selector");
     selector.set_hexpand(true);
+    selector.set_valign(gtk::Align::Center);
     controls.append(&selector);
-    let up = gtk::Button::with_label("↑");
+    let back = gtk::Button::from_icon_name("go-previous-symbolic");
+    square_control(&back);
+    back.set_tooltip_text(Some("Back"));
+    back.set_sensitive(false);
+    let forward = gtk::Button::from_icon_name("go-next-symbolic");
+    square_control(&forward);
+    forward.set_tooltip_text(Some("Forward"));
+    forward.set_sensitive(false);
+    controls.append(&back);
+    controls.append(&forward);
+    let up = gtk::Button::from_icon_name("go-up-symbolic");
+    square_control(&up);
     up.set_tooltip_text(Some("Parent directory"));
-    let refresh = gtk::Button::with_label("↻");
+    let choose_local = gtk::Button::with_label("Open local folder…");
+    choose_local.set_tooltip_text(Some("Open a local folder"));
+    let refresh = gtk::Button::from_icon_name("view-refresh-symbolic");
+    square_control(&refresh);
     refresh.set_tooltip_text(Some("Refresh"));
     controls.append(&up);
     controls.append(&refresh);
+    let sort = gtk::DropDown::from_strings(&["Name", "Size", "Modified"]);
+    sort.set_tooltip_text(Some("Sort directory"));
+    let hidden = gtk::CheckButton::with_label("Show hidden files");
+    let view_options = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    view_options.add_css_class("view-options");
+    view_options.append(&gtk::Label::new(Some("Sort by")));
+    view_options.append(&sort);
+    view_options.append(&hidden);
+    view_options.append(&choose_local);
+    let view_popover = gtk::Popover::new();
+    view_popover.set_child(Some(&view_options));
+    let view_menu = gtk::MenuButton::new();
+    view_menu.set_icon_name("view-more-symbolic");
+    square_control(&view_menu);
+    view_menu.set_tooltip_text(Some("Sort and view options"));
+    view_menu.set_popover(Some(&view_popover));
+    controls.append(&view_menu);
     box_.append(&controls);
+    let breadcrumb = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+    breadcrumb.add_css_class("transfer-breadcrumb");
+    let crumbs_scroll = gtk::ScrolledWindow::builder()
+        .child(&breadcrumb)
+        .hexpand(true)
+        .min_content_height(32)
+        .build();
+    crumbs_scroll.set_policy(gtk::PolicyType::External, gtk::PolicyType::Never);
+    let path_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    path_row.add_css_class("pane-path-row");
     let path = gtk::Entry::new();
+    path.set_hexpand(true);
+    path.set_valign(gtk::Align::Center);
     path.set_text(&std::env::var("HOME").unwrap_or_else(|_| "/".into()));
-    box_.append(&path);
+    let path_stack = gtk::Stack::new();
+    path_stack.set_hexpand(true);
+    path_stack.add_named(&crumbs_scroll, Some("breadcrumbs"));
+    path_stack.add_named(&path, Some("entry"));
+    path_stack.set_visible_child_name("breadcrumbs");
+    path_row.append(&path_stack);
+    let edit_path = gtk::Button::from_icon_name("document-edit-symbolic");
+    square_control(&edit_path);
+    edit_path.set_tooltip_text(Some("Edit location (Ctrl+L)"));
+    path_row.append(&edit_path);
+    {
+        let stack = path_stack.clone();
+        let entry = path.clone();
+        edit_path.connect_clicked(move |_| {
+            stack.set_visible_child_name("entry");
+            entry.grab_focus();
+            entry.select_region(0, -1);
+        });
+    }
+    box_.append(&path_row);
     let filter_row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    filter_row.add_css_class("pane-search-row");
     let filter = gtk::SearchEntry::new();
     filter.set_placeholder_text(Some("Filter files"));
     filter.set_hexpand(true);
-    let sort = gtk::DropDown::from_strings(&["Name", "Size", "Modified"]);
-    sort.set_tooltip_text(Some("Sort directory"));
     filter_row.append(&filter);
-    filter_row.append(&sort);
-    box_.append(&filter_row);
+    let close_filter = gtk::Button::from_icon_name("window-close-symbolic");
+    square_control(&close_filter);
+    close_filter.set_tooltip_text(Some("Close filter"));
+    filter_row.append(&close_filter);
+    let filter_revealer = gtk::Revealer::new();
+    filter_revealer.set_child(Some(&filter_row));
+    filter_revealer.set_reveal_child(false);
+    {
+        let revealer = filter_revealer.clone();
+        let entry = filter.clone();
+        close_filter.connect_clicked(move |_| {
+            entry.set_text("");
+            revealer.set_reveal_child(false);
+        });
+    }
+    box_.append(&filter_revealer);
+    let headings = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    headings.add_css_class("file-headings");
+    let name_heading = gtk::Label::new(Some("NAME"));
+    name_heading.set_xalign(0.0);
+    name_heading.set_margin_start(24);
+    name_heading.set_hexpand(true);
+    headings.append(&name_heading);
+    let size_heading = gtk::Label::new(Some("SIZE"));
+    size_heading.set_width_chars(8);
+    size_heading.set_xalign(1.0);
+    headings.append(&size_heading);
+    box_.append(&headings);
     let list = gtk::ListBox::new();
     list.set_selection_mode(gtk::SelectionMode::Multiple);
     list.add_css_class("file-list");
@@ -284,24 +769,34 @@ fn make_pane(profiles: &[ConnectionProfile]) -> (gtk::Box, Pane) {
         .build();
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::External);
     box_.append(&scroll);
+    let initial_location = Location::Local(PathBuf::from(path.text().as_str()));
     (
         box_,
         Pane {
-            location: Location::Local(PathBuf::from(path.text().as_str())),
+            location: initial_location.clone(),
+            history: vec![initial_location],
+            history_position: 0,
             entries: Vec::new(),
             selector,
+            breadcrumb,
             path,
+            path_stack,
             filter,
+            filter_revealer,
             sort,
+            hidden,
             list,
+            back,
+            forward,
             up,
+            choose_local,
             refresh,
         },
     )
 }
 
 fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
-    let (selector, path, filter, sort, list, up, reload) = {
+    let (selector, path, filter, sort, hidden, list, back, forward, up, choose_local, reload) = {
         let s = state.borrow();
         let p = &s.panes[index];
         (
@@ -309,14 +804,21 @@ fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
             p.path.clone(),
             p.filter.clone(),
             p.sort.clone(),
+            p.hidden.clone(),
             p.list.clone(),
+            p.back.clone(),
+            p.forward.clone(),
             p.up.clone(),
+            p.choose_local.clone(),
             p.refresh.clone(),
         )
     };
     {
         let s = state.clone();
         selector.connect_selected_notify(move |selector| {
+            if s.borrow().restoring_tab {
+                return;
+            }
             let selected = selector.selected();
             let location = if selected == 0 {
                 Location::Local(PathBuf::from(
@@ -347,7 +849,23 @@ fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
                 },
             };
             navigate(s.clone(), index, location);
+            s.borrow().panes[index]
+                .path_stack
+                .set_visible_child_name("breadcrumbs");
         });
+    }
+    {
+        let stack = state.borrow().panes[index].path_stack.clone();
+        let keys = gtk::EventControllerKey::new();
+        keys.connect_key_pressed(move |_, key, _, _| {
+            if key == gtk::gdk::Key::Escape {
+                stack.set_visible_child_name("breadcrumbs");
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
+        });
+        path.add_controller(keys);
     }
     {
         let s = state.clone();
@@ -356,6 +874,18 @@ fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
     {
         let s = state.clone();
         sort.connect_selected_notify(move |_| render_pane(&s, index));
+    }
+    {
+        let s = state.clone();
+        hidden.connect_toggled(move |_| render_pane(&s, index));
+    }
+    {
+        let focus = gtk::EventControllerFocus::new();
+        let s = state.clone();
+        focus.connect_enter(move |_| {
+            s.borrow_mut().active_pane = index;
+        });
+        list.add_controller(focus);
     }
     {
         let s = state.clone();
@@ -376,6 +906,14 @@ fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
     }
     {
         let s = state.clone();
+        back.connect_clicked(move |_| go_history(s.clone(), index, -1));
+    }
+    {
+        let s = state.clone();
+        forward.connect_clicked(move |_| go_history(s.clone(), index, 1));
+    }
+    {
+        let s = state.clone();
         up.connect_clicked(move |_| {
             let next = s.borrow().panes[index].location.parent();
             navigate(s.clone(), index, next);
@@ -385,15 +923,67 @@ fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
         let s = state.clone();
         reload.connect_clicked(move |_| refresh(s.clone(), index));
     }
+    {
+        let s = state.clone();
+        choose_local.connect_clicked(move |_| {
+            let Some(window) = s.borrow().panes[index]
+                .selector
+                .root()
+                .and_downcast::<gtk::ApplicationWindow>()
+            else {
+                return;
+            };
+            let s = s.clone();
+            glib::spawn_future_local(async move {
+                let dialog = gtk::FileDialog::new();
+                if let Ok(file) = dialog.select_folder_future(Some(&window)).await
+                    && let Some(path) = file.path()
+                {
+                    let selector = {
+                        let mut state = s.borrow_mut();
+                        state.restoring_tab = true;
+                        state.panes[index].selector.clone()
+                    };
+                    selector.set_selected(0);
+                    s.borrow_mut().restoring_tab = false;
+                    navigate(s, index, Location::Local(path));
+                }
+            });
+        });
+    }
+    install_drop_targets(state, index, &list);
 }
 
 fn navigate(state: Rc<RefCell<State>>, index: usize, location: Location) {
-    state.borrow_mut().panes[index].location = location;
-    refresh(state, index);
+    if let Err(error) = location.validate() {
+        state.borrow().status.set_text(&error.to_string());
+        return;
+    }
+    {
+        let mut s = state.borrow_mut();
+        let pane = &mut s.panes[index];
+        if pane.location == location {
+            drop(s);
+            refresh(state, index);
+            return;
+        }
+        pane.history.truncate(pane.history_position + 1);
+        pane.history.push(location.clone());
+        pane.history_position = pane.history.len() - 1;
+        pane.location = location;
+        save_active_tab(&mut s);
+    }
+    refresh(state.clone(), index);
+    render_tabs(state);
 }
 fn refresh(state: Rc<RefCell<State>>, index: usize) {
+    render_breadcrumb(state.clone(), index);
     let (location, profiles, runtime, sender) = {
         let s = state.borrow();
+        let pane = &s.panes[index];
+        pane.back.set_sensitive(pane.history_position > 0);
+        pane.forward
+            .set_sensitive(pane.history_position + 1 < pane.history.len());
         (
             s.panes[index].location.clone(),
             s.profiles.clone(),
@@ -422,6 +1012,74 @@ fn refresh(state: Rc<RefCell<State>>, index: usize) {
         let _ = sender.send(Message::Listed(index, location, result));
     });
 }
+
+fn render_breadcrumb(state: Rc<RefCell<State>>, index: usize) {
+    let (bar, location, profiles) = {
+        let s = state.borrow();
+        (
+            s.panes[index].breadcrumb.clone(),
+            s.panes[index].location.clone(),
+            s.profiles.clone(),
+        )
+    };
+    while let Some(child) = bar.first_child() {
+        bar.remove(&child);
+    }
+    let mut crumbs: Vec<(String, Location)> = Vec::new();
+    match location {
+        Location::Local(path) => {
+            let mut current = PathBuf::from("/");
+            crumbs.push(("/".into(), Location::Local(current.clone())));
+            for part in path.components() {
+                if let std::path::Component::Normal(name) = part {
+                    current.push(name);
+                    crumbs.push((
+                        name.to_string_lossy().to_string(),
+                        Location::Local(current.clone()),
+                    ));
+                }
+            }
+        }
+        Location::Remote { profile_id, path } => {
+            let name = profiles
+                .iter()
+                .find(|p| p.id == profile_id)
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| "Remote".into());
+            crumbs.push((
+                name,
+                Location::Remote {
+                    profile_id: profile_id.clone(),
+                    path: String::new(),
+                },
+            ));
+            let mut current = String::new();
+            for part in path.split('/').filter(|part| !part.is_empty()) {
+                if !current.is_empty() {
+                    current.push('/');
+                }
+                current.push_str(part);
+                crumbs.push((
+                    part.to_owned(),
+                    Location::Remote {
+                        profile_id: profile_id.clone(),
+                        path: current.clone(),
+                    },
+                ));
+            }
+        }
+    }
+    for (position, (name, location)) in crumbs.into_iter().enumerate() {
+        if position > 0 {
+            bar.append(&gtk::Label::new(Some("›")));
+        }
+        let button = gtk::Button::with_label(&name);
+        button.add_css_class("flat");
+        let s = state.clone();
+        button.connect_clicked(move |_| navigate(s.clone(), index, location.clone()));
+        bar.append(&button);
+    }
+}
 fn render_pane(state: &Rc<RefCell<State>>, index: usize) {
     let s = state.borrow();
     let pane = &s.panes[index];
@@ -432,7 +1090,10 @@ fn render_pane(state: &Rc<RefCell<State>>, index: usize) {
     let mut entries: Vec<_> = pane
         .entries
         .iter()
-        .filter(|e| e.name.to_lowercase().contains(&filter))
+        .filter(|e| {
+            (pane.hidden.is_active() || !e.name.starts_with('.'))
+                && e.name.to_lowercase().contains(&filter)
+        })
         .collect();
     entries.sort_by(|a, b| {
         b.is_dir
@@ -452,35 +1113,256 @@ fn render_pane(state: &Rc<RefCell<State>>, index: usize) {
         } else {
             "text-x-generic-symbolic"
         }));
+        let text = gtk::Box::new(gtk::Orientation::Vertical, 1);
+        text.set_hexpand(true);
         let name = gtk::Label::new(Some(&entry.name));
         name.set_xalign(0.0);
         name.set_hexpand(true);
         name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        line.append(&name);
-        let size = gtk::Label::new(Some(&entry.size.map(format_size).unwrap_or_default()));
-        size.add_css_class("dim-label");
-        line.append(&size);
-        let date_text = entry
+        text.append(&name);
+        let kind = if entry.is_dir {
+            "Folder"
+        } else {
+            entry.mime.as_deref().unwrap_or("File")
+        };
+        let date = entry
             .modified
             .as_deref()
             .unwrap_or("")
             .chars()
             .take(10)
             .collect::<String>();
-        let date = gtk::Label::new(Some(&date_text));
-        date.add_css_class("dim-label");
-        line.append(&date);
+        let metadata = gtk::Label::new(Some(
+            if date.is_empty() {
+                kind.to_owned()
+            } else {
+                format!("{kind} · {date}")
+            }
+            .as_str(),
+        ));
+        metadata.add_css_class("dim-label");
+        metadata.set_xalign(0.0);
+        metadata.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        text.append(&metadata);
+        line.append(&text);
+        let size = gtk::Label::new(Some(&entry.size.map(format_size).unwrap_or_default()));
+        size.add_css_class("dim-label");
+        size.set_width_chars(8);
+        size.set_xalign(1.0);
+        line.append(&size);
         row.set_child(Some(&line));
+        install_row_actions(state.clone(), index, &row, &entry.name, entry.is_dir);
         pane.list.append(&row);
     }
+}
+
+fn install_row_actions(
+    state: Rc<RefCell<State>>,
+    index: usize,
+    row: &gtk::ListBoxRow,
+    name: &str,
+    is_dir: bool,
+) {
+    let drag = gtk::DragSource::builder()
+        .actions(gtk::gdk::DragAction::COPY)
+        .build();
+    {
+        let state = state.clone();
+        let row = row.clone();
+        let name = name.to_owned();
+        drag.connect_prepare(move |_, _, _| {
+            let s = state.borrow();
+            let pane = &s.panes[index];
+            let names: Vec<String> = if row.is_selected() {
+                pane.list
+                    .selected_rows()
+                    .iter()
+                    .map(|r| r.widget_name().to_string())
+                    .collect()
+            } else {
+                vec![name.clone()]
+            };
+            let sources: Vec<Location> = names
+                .iter()
+                .filter_map(|name| pane.location.child(name).ok())
+                .collect();
+            if sources.is_empty() {
+                return None;
+            }
+            if sources
+                .iter()
+                .all(|source| matches!(source, Location::Local(_)))
+            {
+                let files: Vec<gio::File> = sources
+                    .iter()
+                    .filter_map(|source| match source {
+                        Location::Local(path) => Some(gio::File::for_path(path)),
+                        _ => None,
+                    })
+                    .collect();
+                return Some(gtk::gdk::ContentProvider::for_value(
+                    &gtk::gdk::FileList::from_array(&files).to_value(),
+                ));
+            }
+            let payload = format!("nixe-transfer:{}", serde_json::to_string(&sources).ok()?);
+            Some(gtk::gdk::ContentProvider::for_value(&payload.to_value()))
+        });
+    }
+    row.add_controller(drag);
+    let menu = gtk::GestureClick::new();
+    menu.set_button(3);
+    {
+        let s = state.clone();
+        let row = row.clone();
+        let name = name.to_owned();
+        menu.connect_pressed(move |_, _, _, _| {
+            let (list, source) = {
+                let state = s.borrow();
+                let pane = &state.panes[index];
+                (pane.list.clone(), pane.location.child(&name).ok())
+            };
+            if !row.is_selected() {
+                list.unselect_all();
+                list.select_row(Some(&row));
+            }
+            let popover = gtk::Popover::new();
+            popover.set_parent(&row);
+            let actions = gtk::Box::new(gtk::Orientation::Vertical, 2);
+            if is_dir {
+                let open = gtk::Button::with_label("Open folder");
+                let s = s.clone();
+                let source = source.clone();
+                let pop = popover.clone();
+                open.connect_clicked(move |_| {
+                    if let Some(source) = &source {
+                        navigate(s.clone(), index, source.clone());
+                    }
+                    pop.popdown();
+                });
+                actions.append(&open);
+            }
+            let copy = gtk::Button::with_label("Copy to other pane");
+            {
+                let s = s.clone();
+                let pop = popover.clone();
+                copy.connect_clicked(move |_| {
+                    queue_selected(s.clone(), index, 1 - index);
+                    pop.popdown();
+                });
+            }
+            actions.append(&copy);
+            let copy_path = gtk::Button::with_label("Copy path");
+            {
+                let source = source.clone();
+                let pop = popover.clone();
+                let s = s.clone();
+                copy_path.connect_clicked(move |_| {
+                    if let Some(source) = &source
+                        && let Some(display) = gtk::gdk::Display::default()
+                    {
+                        let value = location_name(source, &s.borrow().profiles);
+                        display.clipboard().set_text(&value);
+                    }
+                    pop.popdown();
+                });
+            }
+            actions.append(&copy_path);
+            popover.set_child(Some(&actions));
+            popover.connect_closed(|popover| popover.unparent());
+            popover.popup();
+        });
+    }
+    row.add_controller(menu);
+}
+
+fn drop_destination(state: &Rc<RefCell<State>>, index: usize, y: f64) -> Location {
+    let s = state.borrow();
+    let pane = &s.panes[index];
+    let current = pane.location.clone();
+    if let Some(row) = pane.list.row_at_y(y as i32) {
+        let name = row.widget_name().to_string();
+        if pane
+            .entries
+            .iter()
+            .any(|entry| entry.name == name && entry.is_dir)
+        {
+            return current.child(&name).unwrap_or(current);
+        }
+    }
+    current
+}
+
+fn queue_dropped(state: Rc<RefCell<State>>, sources: Vec<Location>, destination: Location) -> bool {
+    let mut queued = false;
+    for source in sources {
+        let name = match &source {
+            Location::Local(path) => path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string()),
+            Location::Remote { path, .. } => path.rsplit('/').next().map(str::to_owned),
+        };
+        let Some(name) = name else { continue };
+        let Ok(target) = destination.child(&name) else {
+            continue;
+        };
+        if target == source {
+            continue;
+        }
+        enqueue_job(state.clone(), source, target);
+        queued = true;
+    }
+    queued
+}
+
+fn install_drop_targets(state: Rc<RefCell<State>>, index: usize, list: &gtk::ListBox) {
+    let files = gtk::DropTarget::new(
+        gtk::gdk::FileList::static_type(),
+        gtk::gdk::DragAction::COPY,
+    );
+    {
+        let s = state.clone();
+        files.connect_drop(move |_, value, _, y| {
+            let Ok(files) = value.get::<gtk::gdk::FileList>() else {
+                return false;
+            };
+            let sources: Vec<Location> = files
+                .files()
+                .iter()
+                .filter_map(|file| file.path().map(Location::Local))
+                .collect();
+            let destination = drop_destination(&s, index, y);
+            queue_dropped(s.clone(), sources, destination)
+        });
+    }
+    list.add_controller(files);
+    let remote = gtk::DropTarget::new(String::static_type(), gtk::gdk::DragAction::COPY);
+    {
+        let s = state.clone();
+        remote.connect_drop(move |_, value, _, y| {
+            let Ok(payload) = value.get::<String>() else {
+                return false;
+            };
+            let Some(json) = payload.strip_prefix("nixe-transfer:") else {
+                return false;
+            };
+            let Ok(sources) = serde_json::from_str::<Vec<Location>>(json) else {
+                return false;
+            };
+            let destination = drop_destination(&s, index, y);
+            queue_dropped(s.clone(), sources, destination)
+        });
+    }
+    list.add_controller(remote);
 }
 fn format_size(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{bytes} B")
     } else if bytes < 1024 * 1024 {
         format!("{:.1} KiB", bytes as f64 / 1024.0)
-    } else {
+    } else if bytes < 1024 * 1024 * 1024 {
         format!("{:.1} MiB", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.1} GiB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
 
@@ -588,7 +1470,21 @@ fn control_job(state: Rc<RefCell<State>>, id: String, action: &'static str) {
 }
 
 fn render_jobs(state: Rc<RefCell<State>>, snapshots: Vec<JobSnapshot>) {
+    state.borrow().empty_queue.set_visible(snapshots.is_empty());
+    let running = snapshots
+        .iter()
+        .filter(|job| job.status == JobStatus::Running)
+        .count();
+    let waiting = snapshots
+        .iter()
+        .filter(|job| matches!(job.status, JobStatus::Queued | JobStatus::Paused))
+        .count();
     let ids: std::collections::HashSet<_> = snapshots.iter().map(|j| j.id.clone()).collect();
+    state.borrow().clear_completed.set_sensitive(
+        snapshots
+            .iter()
+            .any(|job| job.status == JobStatus::Completed),
+    );
     {
         let mut s = state.borrow_mut();
         let gone: Vec<_> = s
@@ -605,8 +1501,9 @@ fn render_jobs(state: Rc<RefCell<State>>, snapshots: Vec<JobSnapshot>) {
     }
     for snapshot in snapshots {
         if !state.borrow().jobs.contains_key(&snapshot.id) {
-            let line = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+            let line = gtk::Box::new(gtk::Orientation::Vertical, 2);
             line.add_css_class("job-row");
+            let top = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let title_text = {
                 let s = state.borrow();
                 format!(
@@ -624,14 +1521,28 @@ fn render_jobs(state: Rc<RefCell<State>>, snapshots: Vec<JobSnapshot>) {
             status.add_css_class("dim-label");
             status.set_max_width_chars(42);
             status.set_ellipsize(gtk::pango::EllipsizeMode::End);
-            let pause = gtk::Button::with_label("Pause");
-            let cancel = gtk::Button::with_label("Cancel");
-            let retry = gtk::Button::with_label("Retry");
-            line.append(&title);
-            line.append(&status);
-            line.append(&pause);
-            line.append(&cancel);
-            line.append(&retry);
+            let pause = gtk::Button::from_icon_name("media-playback-pause-symbolic");
+            square_control(&pause);
+            pause.set_tooltip_text(Some("Pause transfer"));
+            let cancel = gtk::Button::from_icon_name("process-stop-symbolic");
+            square_control(&cancel);
+            cancel.set_tooltip_text(Some("Cancel transfer"));
+            let retry = gtk::Button::from_icon_name("view-refresh-symbolic");
+            square_control(&retry);
+            retry.set_tooltip_text(Some("Retry transfer"));
+            top.append(&title);
+            top.append(&status);
+            top.append(&pause);
+            top.append(&cancel);
+            top.append(&retry);
+            line.append(&top);
+            let progress = gtk::ProgressBar::new();
+            progress.set_show_text(false);
+            line.append(&progress);
+            let detail = gtk::Label::new(None);
+            detail.set_xalign(0.0);
+            detail.add_css_class("dim-label");
+            line.append(&detail);
             {
                 let s = state.clone();
                 let id = snapshot.id.clone();
@@ -666,6 +1577,8 @@ fn render_jobs(state: Rc<RefCell<State>>, snapshots: Vec<JobSnapshot>) {
                 JobView {
                     row: line,
                     status,
+                    detail,
+                    progress,
                     retry,
                     pause,
                     cancel,
@@ -675,16 +1588,53 @@ fn render_jobs(state: Rc<RefCell<State>>, snapshots: Vec<JobSnapshot>) {
         }
         if let Some(view) = state.borrow_mut().jobs.get_mut(&snapshot.id) {
             view.state = snapshot.status.clone();
-            view.status.set_text(&format!(
-                "{} · retry {}",
-                snapshot.progress, snapshot.retries
+            let status_text = match &snapshot.status {
+                JobStatus::Queued => "Queued".to_owned(),
+                JobStatus::Paused => "Paused".to_owned(),
+                JobStatus::Running => "Running".to_owned(),
+                JobStatus::Completed => "Completed".to_owned(),
+                JobStatus::Cancelled => "Cancelled".to_owned(),
+                JobStatus::Failed(error) => format!("Failed: {error}"),
+            };
+            view.status.set_text(&status_text);
+            view.status.set_tooltip_text(Some(&snapshot.progress));
+            let amount = match snapshot.total_bytes {
+                Some(total) if total > 0 => {
+                    format!("{} / {}", format_size(snapshot.bytes), format_size(total))
+                }
+                _ if snapshot.bytes > 0 => format_size(snapshot.bytes),
+                _ => "—".into(),
+            };
+            let speed = snapshot
+                .speed_bytes_per_sec
+                .filter(|speed| *speed > 0.0)
+                .map(|speed| format!("{}/s", format_size(speed as u64)))
+                .unwrap_or_else(|| "—".into());
+            let eta = snapshot
+                .eta_seconds
+                .map(format_duration)
+                .unwrap_or_else(|| "—".into());
+            view.detail.set_text(&format!(
+                "{amount}    {speed}    ETA {eta}    Retries {}",
+                snapshot.retries
             ));
-            view.pause
-                .set_label(if snapshot.status == JobStatus::Paused {
-                    "Resume"
-                } else {
-                    "Pause"
-                });
+            if snapshot.status == JobStatus::Completed {
+                view.progress.set_fraction(1.0);
+            } else if let Some(total) = snapshot.total_bytes.filter(|total| *total > 0) {
+                view.progress
+                    .set_fraction((snapshot.bytes as f64 / total as f64).clamp(0.0, 1.0));
+            } else if snapshot.status == JobStatus::Running {
+                view.progress.pulse();
+            } else {
+                view.progress.set_fraction(0.0);
+            }
+            if snapshot.status == JobStatus::Paused {
+                view.pause.set_icon_name("media-playback-start-symbolic");
+                view.pause.set_tooltip_text(Some("Resume transfer"));
+            } else {
+                view.pause.set_icon_name("media-playback-pause-symbolic");
+                view.pause.set_tooltip_text(Some("Pause transfer"));
+            }
             view.pause.set_sensitive(matches!(
                 snapshot.status,
                 JobStatus::Queued | JobStatus::Paused
@@ -696,6 +1646,25 @@ fn render_jobs(state: Rc<RefCell<State>>, snapshots: Vec<JobSnapshot>) {
             view.retry
                 .set_sensitive(matches!(snapshot.status, JobStatus::Failed(_)));
         }
+    }
+    {
+        let s = state.borrow();
+        if running > 0 {
+            s.activity_spinner.start();
+        } else {
+            s.activity_spinner.stop();
+        }
+        s.activity
+            .set_text(&format!("{running} active · {waiting} waiting"));
+    }
+}
+fn format_duration(seconds: u64) -> String {
+    if seconds >= 3600 {
+        format!("{}h {:02}m", seconds / 3600, (seconds % 3600) / 60)
+    } else if seconds >= 60 {
+        format!("{}m {:02}s", seconds / 60, seconds % 60)
+    } else {
+        format!("{seconds}s")
     }
 }
 fn location_name(location: &Location, profiles: &[ConnectionProfile]) -> String {
@@ -742,7 +1711,11 @@ fn handle_message(state: Rc<RefCell<State>>, message: Message) {
             .set_text(&format!("Transfer service unavailable: {e}")),
         Message::QueueResult(result) => match result {
             Ok(()) => {
-                state.borrow().status.set_text("Transfer queued.");
+                let s = state.borrow();
+                s.status.set_text("Transfer queued.");
+                s.queue_revealer.set_reveal_child(true);
+                s.queue_toggle.set_icon_name("pan-down-symbolic");
+                drop(s);
                 request_jobs(state);
             }
             Err(e) => state
@@ -864,6 +1837,8 @@ fn sync_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>) {
         .default_width(660)
         .default_height(540)
         .build();
+    window.add_css_class("transfer-window");
+    window.add_css_class("transfer-dialog");
     let form = gtk::Box::new(gtk::Orientation::Vertical, 8);
     form.set_margin_top(16);
     form.set_margin_bottom(16);
@@ -874,12 +1849,12 @@ fn sync_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>) {
     source_label.set_wrap(true);
     form.append(&source_label);
     let direction = gtk::DropDown::from_strings(&["Left → right", "Right → left"]);
-    form.append(&direction);
+    dropdown_field(&form, "Direction", &direction);
     let mode = gtk::DropDown::from_strings(&[
         "Copy new and changed files",
         "Mirror (delete destination extras)",
     ]);
-    form.append(&mode);
+    dropdown_field(&form, "Mode", &mode);
     let preview_button = gtk::Button::with_label("Preview changes");
     form.append(&preview_button);
     let status = gtk::Label::new(Some("Choose a direction and preview the changes."));
@@ -896,6 +1871,7 @@ fn sync_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>) {
         .build();
     form.append(&scroll);
     let queue = gtk::Button::with_label("Queue synchronization");
+    queue.add_css_class("suggested-action");
     queue.set_sensitive(false);
     form.append(&queue);
     window.set_child(Some(&form));
@@ -1072,6 +2048,8 @@ fn import_remote_dialog(
         .modal(true)
         .default_width(420)
         .build();
+    dialog.add_css_class("transfer-window");
+    dialog.add_css_class("transfer-dialog");
     let form = gtk::Box::new(gtk::Orientation::Vertical, 8);
     form.set_margin_top(16);
     form.set_margin_bottom(16);
@@ -1087,7 +2065,7 @@ fn import_remote_dialog(
         .collect();
     let labels: Vec<&str> = names.iter().map(String::as_str).collect();
     let selector = gtk::DropDown::from_strings(&labels);
-    form.append(&selector);
+    dropdown_field(&form, "Remote", &selector);
     let name = field(&form, "Display name", "");
     name.set_text(&remotes[0].name);
     let directory = field(&form, "Starting directory (optional)", "");
@@ -1098,6 +2076,7 @@ fn import_remote_dialog(
     detail.set_xalign(0.0);
     form.append(&detail);
     let save = gtk::Button::with_label("Import remote");
+    save.add_css_class("suggested-action");
     form.append(&save);
     dialog.set_child(Some(&form));
     {
@@ -1167,7 +2146,10 @@ fn connection_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>)
         .transient_for(parent)
         .modal(true)
         .default_width(420)
+        .default_height(650)
         .build();
+    dialog.add_css_class("transfer-window");
+    dialog.add_css_class("transfer-dialog");
     let form = gtk::Box::new(gtk::Orientation::Vertical, 8);
     form.set_margin_top(16);
     form.set_margin_bottom(16);
@@ -1181,13 +2163,13 @@ fn connection_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>)
         "FTPS (implicit)",
         "WebDAV",
     ]);
-    form.append(&protocol);
+    dropdown_field(&form, "Protocol", &protocol);
     let host = field(&form, "Host or WebDAV URL", "example.com");
     let port = field(&form, "Port", "22");
     port.set_text("22");
     let user = field(&form, "Username", "");
     let auth = gtk::DropDown::from_strings(&["SSH agent", "SSH key", "Password"]);
-    form.append(&auth);
+    dropdown_field(&form, "Authentication", &auth);
     let key = field(&form, "SSH key file (if selected)", "");
     let known = field(&form, "SSH known_hosts file", "");
     known.set_text(&format!(
@@ -1203,8 +2185,9 @@ fn connection_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>)
     let plaintext = gtk::CheckButton::with_label("Allow plaintext FTP or HTTP WebDAV");
     form.append(&plaintext);
     let save = gtk::Button::with_label("Save connection");
+    save.add_css_class("suggested-action");
     form.append(&save);
-    dialog.set_child(Some(&form));
+    dialog.set_child(Some(&gtk::ScrolledWindow::builder().child(&form).build()));
     {
         let port = port.clone();
         let auth = auth.clone();
@@ -1448,12 +2431,25 @@ fn trust_host(parent: &gtk::Window, host: String, port: String, known: gtk::Entr
     });
 }
 fn field(parent: &gtk::Box, label: &str, placeholder: &str) -> gtk::Entry {
+    let group = gtk::Box::new(gtk::Orientation::Vertical, 4);
     let title = gtk::Label::new(Some(label));
     title.set_xalign(0.0);
     title.add_css_class("dim-label");
-    parent.append(&title);
+    group.append(&title);
     let entry = gtk::Entry::new();
     entry.set_placeholder_text(Some(placeholder));
-    parent.append(&entry);
+    group.append(&entry);
+    parent.append(&group);
     entry
+}
+
+fn dropdown_field(parent: &gtk::Box, label: &str, dropdown: &gtk::DropDown) {
+    let group = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    let title = gtk::Label::new(Some(label));
+    title.set_xalign(0.0);
+    title.add_css_class("dim-label");
+    group.append(&title);
+    dropdown.set_hexpand(true);
+    group.append(dropdown);
+    parent.append(&group);
 }

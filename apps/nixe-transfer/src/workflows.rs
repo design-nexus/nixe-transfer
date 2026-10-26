@@ -93,6 +93,8 @@ pub(super) fn manager(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>
         .default_width(500)
         .default_height(440)
         .build();
+    window.add_css_class("transfer-window");
+    window.add_css_class("transfer-dialog");
     let root = gtk::Box::new(gtk::Orientation::Vertical, 8);
     root.set_margin_top(16);
     root.set_margin_bottom(16);
@@ -237,6 +239,8 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
         .default_width(670)
         .default_height(790)
         .build();
+    window.add_css_class("transfer-window");
+    window.add_css_class("transfer-dialog");
     let root = gtk::Box::new(gtk::Orientation::Vertical, 8);
     root.set_margin_top(16);
     root.set_margin_bottom(16);
@@ -253,7 +257,7 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
     labels.set_wrap(true);
     root.append(&labels);
     let direction = gtk::DropDown::from_strings(&["A → B", "B → A"]);
-    root.append(&direction);
+    dropdown_field(&root, "Direction", &direction);
     let mode = gtk::DropDown::from_strings(&[
         "Copy new and changed files",
         "Mirror destination",
@@ -264,7 +268,7 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
         SyncMode::Mirror => 1,
         SyncMode::Bidirectional => 2,
     });
-    root.append(&mode);
+    dropdown_field(&root, "Mode", &mode);
     let include = text_area(
         &root,
         "Include patterns (one rclone pattern per line)",
@@ -275,9 +279,6 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
         "Exclude patterns (one rclone pattern per line)",
         &base.exclude,
     );
-    let conflict_label = gtk::Label::new(Some("Bidirectional conflict handling"));
-    conflict_label.set_xalign(0.0);
-    root.append(&conflict_label);
     let conflict =
         gtk::DropDown::from_strings(&["Keep both", "Prefer A", "Prefer B", "Prefer newer"]);
     conflict.set_selected(match base.conflict {
@@ -286,7 +287,7 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
         ConflictPolicy::PreferRight => 2,
         ConflictPolicy::PreferNewer => 3,
     });
-    root.append(&conflict);
+    dropdown_field(&root, "Bidirectional conflict handling", &conflict);
     let checksum = gtk::CheckButton::with_label("Compare checksums when available");
     checksum.set_active(base.checksum);
     root.append(&checksum);
@@ -298,6 +299,7 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
     retry_limit.set_text(&base.retry_limit.to_string());
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let save = gtk::Button::with_label("Save workflow");
+    save.add_css_class("suggested-action");
     let preview_button = gtk::Button::with_label("Preview");
     actions.append(&save);
     actions.append(&preview_button);
@@ -318,6 +320,7 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
             .build(),
     );
     let queue = gtk::Button::with_label("Queue workflow");
+    queue.add_css_class("suggested-action");
     queue.set_sensitive(false);
     root.append(&queue);
     window.set_child(Some(&gtk::ScrolledWindow::builder().child(&root).build()));

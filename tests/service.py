@@ -62,6 +62,7 @@ with tempfile.TemporaryDirectory(prefix="nixe-transfer-service-") as temp:
                       json.dumps({"Local": str(destination)}))
         wait(lambda: jobs().get(job_id, {}).get("status") == "Completed")
         assert destination.read_text(encoding="utf-8") == "persistent transfer"
+        assert jobs()[job_id]["bytes"] > 0
 
         sync_source = base / "sync source"
         sync_target = base / "sync target"
@@ -196,4 +197,4 @@ with tempfile.TemporaryDirectory(prefix="nixe-transfer-service-") as temp:
     finally:
         daemon.terminate()
         daemon.wait(timeout=5)
-print("PASS: private-bus transfer, recovery, retry, resume, cancel, and history clearing")
+print("PASS: private-bus transfer, sync workflows, bisync conflicts, recovery, and queue controls")

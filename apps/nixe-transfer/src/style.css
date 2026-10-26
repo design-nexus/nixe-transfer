@@ -1,10 +1,107 @@
 window.transfer-window { font-family: "JetBrains Mono", monospace; }
-window.transfer-window .transfer-toolbar, window.transfer-window .pane-controls { min-height: 46px; padding: 0 12px; border-bottom: 1px solid @hairline; }
+
+window.transfer-window .transfer-toolbar {
+  min-height: 48px;
+  padding: 0 10px;
+  border-bottom: 1px solid @hairline;
+}
+window.transfer-window .transfer-toolbar button { min-height: 36px; }
+window.transfer-window .transfer-toolbar .toolbar-divider {
+  min-height: 22px;
+  margin: 0 4px;
+  background: @hairline;
+}
+window.transfer-window button.square-button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+
+window.transfer-window .transfer-tabs {
+  min-height: 42px;
+  padding: 3px 0;
+}
+window.transfer-window .transfer-tab { border-radius: 6px; }
+window.transfer-window .transfer-tab.active { background: transparent; }
+window.transfer-window .transfer-tab button { min-height: 30px; padding: 0 8px; border-color: transparent; }
+
 window.transfer-window .transfer-pane { min-width: 280px; }
 window.transfer-window .transfer-pane:first-child { border-right: 1px solid @hairline; }
-window.transfer-window .transfer-pane entry { margin: 6px 10px; }
-window.transfer-window .transfer-actions { padding: 12px 4px; border-right: 1px solid @hairline; }
-window.transfer-window .file-list row { min-height: 35px; padding: 4px 10px; }
-window.transfer-window .queue-head { padding: 6px 12px; border-top: 1px solid @hairline; color: @theme_dim_text; }
-window.transfer-window .job-row { padding: 2px 12px; }
-window.transfer-window .transfer-status { min-height: 34px; padding: 0 12px; color: @theme_dim_text; border-top: 1px solid @hairline; }
+window.transfer-window .pane-controls {
+  min-height: 48px;
+  padding: 0 10px;
+  border-bottom: 1px solid @hairline;
+}
+window.transfer-window .pane-controls dropdown.location-selector > button {
+  min-width: 100px;
+  min-height: 36px;
+  padding: 0 8px;
+}
+window.transfer-window .transfer-breadcrumb {
+  min-height: 32px;
+  padding: 0 2px;
+}
+window.transfer-window .transfer-breadcrumb button {
+  min-height: 30px;
+  padding: 0 6px;
+}
+window.transfer-window .pane-path-row {
+  min-height: 48px;
+  padding: 0 10px;
+  border-bottom: 1px solid @hairline;
+}
+window.transfer-window .pane-search-row { padding: 6px 10px; border-bottom: 1px solid @hairline; }
+window.transfer-window .pane-path-row entry,
+window.transfer-window .pane-search-row entry {
+  min-height: 36px;
+  margin: 0;
+}
+window.transfer-window .view-options { padding: 10px; min-width: 190px; }
+window.transfer-window .view-options > label { color: @theme_dim_text; }
+window.transfer-window .view-options dropdown > button { min-width: 0; min-height: 36px; }
+
+window.transfer-window .file-headings {
+  min-height: 28px;
+  padding: 0 10px;
+  color: @theme_dim_text;
+  border-bottom: 1px solid @hairline;
+}
+window.transfer-window .file-list row { min-height: 44px; padding: 4px 10px; }
+window.transfer-window .file-list row .dim-label { font-size: 0.82em; }
+
+window.transfer-window .queue-head {
+  min-height: 48px;
+  padding: 0 12px;
+  border-top: 1px solid @hairline;
+  color: @theme_dim_text;
+}
+window.transfer-window .queue-head button { min-height: 36px; }
+window.transfer-window .transfer-queue-view {
+  margin: 0 12px 8px;
+  border: 1px solid @hairline;
+  border-radius: 6px;
+}
+window.transfer-window .queue-empty { padding: 12px; color: @theme_dim_text; }
+window.transfer-window .job-row { padding: 7px 12px; border-bottom: 1px solid @hairline; }
+window.transfer-window .job-row progressbar { min-height: 3px; }
+window.transfer-window .transfer-status {
+  min-height: 34px;
+  padding: 0 12px;
+  color: @theme_dim_text;
+  border-top: 1px solid @hairline;
+}
+
+window.transfer-dialog entry,
+window.transfer-dialog dropdown > button { min-height: 32px; }
+window.transfer-dialog dropdown > button { min-width: 0; }
+window.transfer-dialog button.suggested-action { min-height: 34px; }
+
+window.transfer-window button.square-button,
+window.transfer-window .transfer-tab button.square-button,
+window.transfer-window .job-row button.square-button,
+window.transfer-window menubutton.square-button > button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  margin: 0;
+}

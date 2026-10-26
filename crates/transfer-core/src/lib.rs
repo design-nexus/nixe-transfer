@@ -188,6 +188,14 @@ pub struct JobSnapshot {
     pub updated_at: i64,
     #[serde(default)]
     pub operation: JobOperation,
+    #[serde(default)]
+    pub bytes: u64,
+    #[serde(default)]
+    pub total_bytes: Option<u64>,
+    #[serde(default)]
+    pub speed_bytes_per_sec: Option<f64>,
+    #[serde(default)]
+    pub eta_seconds: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,7 +207,7 @@ pub enum JobOperation {
         preview_fingerprint: String,
     },
     Workflow {
-        workflow: SyncWorkflow,
+        workflow: Box<SyncWorkflow>,
         preview_fingerprint: String,
     },
 }
@@ -324,6 +332,12 @@ impl JobStatus {
 #[derive(Clone, Debug)]
 pub enum TransferEvent {
     Progress(String),
+    Metrics {
+        bytes: u64,
+        total_bytes: Option<u64>,
+        speed_bytes_per_sec: Option<f64>,
+        eta_seconds: Option<u64>,
+    },
     Finished(Result<(), TransferError>),
 }
 

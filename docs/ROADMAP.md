@@ -4,7 +4,8 @@
    architecture and backend documentation.
 2. **Interactive transfers:** local, SFTP, FTP, FTPS, WebDAV browsing and
    copy in either direction, saved connections, queue, progress, cancellation,
-   retries, clear errors, and installation.
+   retries, clear errors, connection tabs, drag-and-drop, pane navigation,
+   queue speed/ETA, and installation.
 3. **Reliability:** `nixe-transferd`, SQLite job state, versioned D-Bus IPC,
    restart recovery, notifications, and history are implemented. Safe active
    transfer resume remains backend-specific future work.
