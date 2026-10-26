@@ -1,0 +1,22 @@
+{
+  "application": "transfer",
+  "directory": ".",
+  "packages": [
+    "nixe-transfer",
+    "nixe-transferd"
+  ],
+  "manifest": "Cargo.toml",
+  "prepare": [],
+  "binaries": [],
+  "test_commands": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "nixe-transfer",
+      "-p",
+      "nixe-transferd"
+    ]
+  ]
+}

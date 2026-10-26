@@ -1,2 +1,3 @@
 /target
 /.nixe-local.json
+/dist/

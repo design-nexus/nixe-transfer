@@ -11,7 +11,8 @@ if [[ -z ${BASH_SOURCE[0]:-} ]]; then
   exit
 fi
 cd -- "$(dirname -- "$0")"
-CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release --locked -p nixe-transfer -p nixe-transferd
+# A release archive (.prebuilt) brings its binaries.
+[[ -f .prebuilt ]] || CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release --locked -p nixe-transfer -p nixe-transferd
 install -Dm755 target/release/nixe-transfer "$HOME/.local/bin/nixe-transfer.new"
 mv -f "$HOME/.local/bin/nixe-transfer.new" "$HOME/.local/bin/nixe-transfer"
 install -Dm755 target/release/nixe-transferd "$HOME/.local/bin/nixe-transferd.new"
