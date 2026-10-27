@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/transfer-core", "crates/transfer-rclone", "crates/transfer-storage", "crates/transfer-ipc", "apps/nixe-transfer", "apps/nixe-transferd"]
-default-members = ["apps/nixe-transfer"]
+members = ["crates/transfer-core", "crates/transfer-rclone", "crates/transfer-storage", "crates/transfer-ipc", "apps/nyx-transfer", "apps/nyx-transferd"]
+default-members = ["apps/nyx-transfer"]
 resolver = "3"
 
 [workspace.package]

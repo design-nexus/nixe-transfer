@@ -12,7 +12,7 @@ fn db_path() -> PathBuf {
         .unwrap_or_else(|| {
             PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share")
         });
-    base.join("nixe-transfer/connections.db")
+    base.join("nyx-transfer/connections.db")
 }
 
 fn connection() -> Result<Connection> {
@@ -136,7 +136,7 @@ pub async fn save_password(profile_id: &str, password: &str) -> Result<()> {
         collection.unlock().await?;
     }
     let mut attrs = HashMap::new();
-    attrs.insert("application", "nixe-transfer");
+    attrs.insert("application", "nyx-transfer");
     attrs.insert("profile", profile_id);
     collection
         .create_item(
@@ -164,7 +164,7 @@ pub async fn with_credentials(
         let password = if profile.auth == Auth::Password {
             let service = service.as_ref().context("Secret Service unavailable")?;
             let mut attrs = HashMap::new();
-            attrs.insert("application", "nixe-transfer");
+            attrs.insert("application", "nyx-transfer");
             attrs.insert("profile", profile.id.as_str());
             let found = service.search_items(attrs).await?;
             let item = if let Some(item) = found.unlocked.into_iter().next() {

@@ -3,8 +3,8 @@ Description=Background transfers for Transfer
 
 [Service]
 Type=dbus
-BusName=io.github.design_nexus.nixe.Transfer1
-ExecStart=%h/.local/bin/nixe-transferd
+BusName=io.github.design_nexus.nyx.Transfer1
+ExecStart=%h/.local/bin/nyx-transferd
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30

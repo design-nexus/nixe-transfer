@@ -71,8 +71,8 @@ pub async fn available_remotes(config: &Path) -> Result<Vec<AvailableRemote>, Tr
 
 fn valid_remote_name(name: &str) -> bool {
     !name.is_empty()
-        && !name.eq_ignore_ascii_case("NIXE_A")
-        && !name.eq_ignore_ascii_case("NIXE_B")
+        && !name.eq_ignore_ascii_case("NYX_A")
+        && !name.eq_ignore_ascii_case("NYX_B")
         && !name.contains([':', '/', '\\', '\n', '\r'])
 }
 
@@ -158,7 +158,7 @@ pub async fn list(
 ) -> Result<Vec<FileEntry>, TransferError> {
     let config = config_for([location], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let path = configure(&mut cmd, location, profiles, "NIXE_A").await?;
+    let path = configure(&mut cmd, location, profiles, "NYX_A").await?;
     cmd.arg("lsjson")
         .args(["--retries", "1", "--low-level-retries", "1"])
         .arg("--")
@@ -212,8 +212,8 @@ async fn copy_inner(
     }
     let config = config_for([source, destination], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let src = configure(&mut cmd, source, profiles, "NIXE_A").await?;
-    let dst = configure(&mut cmd, destination, profiles, "NIXE_B").await?;
+    let src = configure(&mut cmd, source, profiles, "NYX_A").await?;
+    let dst = configure(&mut cmd, destination, profiles, "NYX_B").await?;
     cmd.arg("copyto").args([
         "--immutable",
         "--stats",
@@ -255,8 +255,8 @@ async fn preview_sync_with_options(
     }
     let config = config_for([source, destination], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let src = configure(&mut cmd, source, profiles, "NIXE_A").await?;
-    let dst = configure(&mut cmd, destination, profiles, "NIXE_B").await?;
+    let src = configure(&mut cmd, source, profiles, "NYX_A").await?;
+    let dst = configure(&mut cmd, destination, profiles, "NYX_B").await?;
     cmd.arg(match mode {
         SyncMode::Copy => "copy",
         SyncMode::Mirror => "sync",
@@ -374,8 +374,8 @@ async fn sync_inner(
     }
     let config = config_for([source, destination], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let src = configure(&mut cmd, source, profiles, "NIXE_A").await?;
-    let dst = configure(&mut cmd, destination, profiles, "NIXE_B").await?;
+    let src = configure(&mut cmd, source, profiles, "NYX_A").await?;
+    let dst = configure(&mut cmd, destination, profiles, "NYX_B").await?;
     cmd.arg(match mode {
         SyncMode::Copy => "copy",
         SyncMode::Mirror => "sync",
@@ -690,7 +690,7 @@ mod tests {
     }
     #[tokio::test]
     async fn local_listing_and_copy() {
-        let root = std::env::temp_dir().join(format!("nixe-transfer-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("nyx-transfer-test-{}", std::process::id()));
         let source = root.join("source");
         let target = root.join("target");
         std::fs::create_dir_all(&source).unwrap();
@@ -734,7 +734,7 @@ mod tests {
     #[tokio::test]
     async fn cancelled_before_start_does_not_write_destination() {
         let root =
-            std::env::temp_dir().join(format!("nixe-transfer-cancel-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nyx-transfer-cancel-test-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         let source = root.join("source");
         let destination = root.join("destination");
@@ -761,7 +761,7 @@ mod tests {
     #[tokio::test]
     async fn imported_remotes_copy_between_locations() {
         let root =
-            std::env::temp_dir().join(format!("nixe-transfer-import-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nyx-transfer-import-test-{}", std::process::id()));
         let first = root.join("first");
         let second = root.join("second");
         std::fs::create_dir_all(&first).unwrap();
@@ -841,7 +841,7 @@ mod tests {
     #[tokio::test]
     async fn sync_preview_blocks_stale_mirror_and_applies_reviewed_changes() {
         let root =
-            std::env::temp_dir().join(format!("nixe-transfer-sync-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nyx-transfer-sync-test-{}", std::process::id()));
         let source = root.join("source");
         let destination_path = root.join("destination");
         std::fs::create_dir_all(&source).unwrap();
@@ -923,7 +923,7 @@ mod tests {
     #[tokio::test]
     async fn disposable_ftp_and_webdav_listings() {
         let root =
-            std::env::temp_dir().join(format!("nixe-transfer-remote-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nyx-transfer-remote-test-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("remote ☃.txt"), b"hello").unwrap();
         for (protocol, serve, extra) in [
@@ -1022,7 +1022,7 @@ mod tests {
     #[tokio::test]
     async fn disposable_sftp_requires_known_host() {
         let root =
-            std::env::temp_dir().join(format!("nixe-transfer-sftp-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nyx-transfer-sftp-test-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("remote file.txt"), b"hello").unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

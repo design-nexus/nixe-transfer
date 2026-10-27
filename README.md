@@ -1,6 +1,6 @@
 # Transfer
 
-Transfer is Nixe's standalone local and remote file-transfer application. The
+Transfer is Nyx's standalone local and remote file-transfer application. The
 first release browses local, SFTP, FTP, FTPS, and WebDAV locations and copies
 files or directories between any two of them. It uses rclone as a subprocess;
 network protocols are not implemented in this repository.
@@ -9,10 +9,10 @@ stores the remote name and config path; rclone continues to manage its own
 credentials and may refresh provider tokens in that file.
 
 Build with `cargo build --release --locked --workspace` and install with `./install.sh`.
-The application is named **Transfer**, its binary is `nixe-transfer`, and its
-application ID is `io.github.design_nexus.nixe.Transfer`.
+The application is named **Transfer**, its binary is `nyx-transfer`, and its
+application ID is `io.github.design_nexus.nyx.Transfer`.
 
-Transfers run in `nixe-transferd` and continue when the window closes. Jobs and
+Transfers run in `nyx-transferd` and continue when the window closes. Jobs and
 history are stored in SQLite. Queued jobs restart with the service; an active
 job interrupted by service shutdown is marked failed for an explicit safe retry.
 Transfers protect existing targets from replacement. SFTP requires a known SSH host key; use the connection
@@ -36,13 +36,13 @@ cover local, SFTP, FTP, and WebDAV uploads and downloads. FTPS uses rclone's
 explicit or implicit TLS modes, but a compatible disposable FTPS server was
 not available for an end-to-end check.
 
-Targeted service check: `cargo build --locked -p nixe-transferd` followed by
+Targeted service check: `cargo build --locked -p nyx-transferd` followed by
 `dbus-run-session -- python3 tests/service.py`. It uses temporary data and a
 private bus, with no personal accounts.
 
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-transfer/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nyx-transfer/main/install.sh | bash
 ```
 

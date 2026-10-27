@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=io.github.design_nexus.nyx.Transfer1
+Exec=/usr/bin/false
+SystemdService=nyx-transfer.service

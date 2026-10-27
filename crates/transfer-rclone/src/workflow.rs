@@ -21,7 +21,7 @@ fn workflow_dir(workflow: &SyncWorkflow) -> Result<PathBuf, TransferError> {
         .unwrap_or_else(|| {
             PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share")
         });
-    let dir = base.join("nixe-transfer/workflows").join(&workflow.id);
+    let dir = base.join("nyx-transfer/workflows").join(&workflow.id);
     std::fs::create_dir_all(&dir).map_err(|e| TransferError::Backend(e.to_string()))?;
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
         .map_err(|e| TransferError::Backend(e.to_string()))?;
@@ -82,7 +82,7 @@ async fn listing(
 ) -> Result<Vec<SnapshotEntry>, TransferError> {
     let config = config_for([location], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let path = configure(&mut cmd, location, profiles, "NIXE_A").await?;
+    let path = configure(&mut cmd, location, profiles, "NYX_A").await?;
     cmd.arg("lsjson")
         .args(["--recursive", "--files-only", "--filter-from"])
         .arg(filter)
@@ -214,8 +214,8 @@ pub async fn preview_workflow(
         .map_err(|e| TransferError::Backend(e.to_string()))?;
     let config = config_for([&workflow.source, &workflow.destination], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let src = configure(&mut cmd, &workflow.source, profiles, "NIXE_A").await?;
-    let dst = configure(&mut cmd, &workflow.destination, profiles, "NIXE_B").await?;
+    let src = configure(&mut cmd, &workflow.source, profiles, "NYX_A").await?;
+    let dst = configure(&mut cmd, &workflow.destination, profiles, "NYX_B").await?;
     append_bisync_args(&mut cmd, workflow, &dir, &filter, true);
     cmd.arg("--").arg(src).arg(dst).kill_on_drop(true);
     let output = cmd
@@ -311,8 +311,8 @@ async fn run_workflow_inner(
     let filter = filter_file(workflow, &dir)?;
     let config = config_for([&workflow.source, &workflow.destination], profiles)?;
     let mut cmd = base_command(config.as_deref());
-    let src = configure(&mut cmd, &workflow.source, profiles, "NIXE_A").await?;
-    let dst = configure(&mut cmd, &workflow.destination, profiles, "NIXE_B").await?;
+    let src = configure(&mut cmd, &workflow.source, profiles, "NYX_A").await?;
+    let dst = configure(&mut cmd, &workflow.destination, profiles, "NYX_B").await?;
     if workflow.mode == SyncMode::Bidirectional {
         append_bisync_args(&mut cmd, workflow, &dir, &filter, false);
     } else {

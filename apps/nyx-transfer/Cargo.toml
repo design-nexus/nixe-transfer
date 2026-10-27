@@ -1,5 +1,5 @@
 [package]
-name = "nixe-transferd"
+name = "nyx-transfer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,6 +9,10 @@ transfer-core = { path = "../../crates/transfer-core" }
 transfer-rclone = { path = "../../crates/transfer-rclone" }
 transfer-storage = { path = "../../crates/transfer-storage" }
 transfer-ipc = { path = "../../crates/transfer-ipc" }
+nyx-core = { git = "https://github.com/design-nexus/nyx-core.git", rev = "52cba5e27a3dd5f00c780f53e423302b4b5f9c9c" }
+nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "938c638951a53f5874a8276d07ac9dcd68b191ad" }
+nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "938c638951a53f5874a8276d07ac9dcd68b191ad" }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 anyhow.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

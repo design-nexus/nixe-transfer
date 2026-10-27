@@ -8,7 +8,7 @@ use transfer_core::{
 use transfer_storage as store;
 mod workflows;
 
-const APP_ID: &str = "io.github.design_nexus.nixe.Transfer";
+const APP_ID: &str = "io.github.design_nexus.nyx.Transfer";
 const CONTROL_SIZE: i32 = 36;
 
 fn square_control(widget: &impl IsA<gtk::Widget>) {
@@ -107,8 +107,8 @@ fn main() -> glib::ExitCode {
         .with_max_level(tracing::Level::INFO)
         .try_init()
         .ok();
-    nixe_core::app::init(nixe_core::app::App {
-        slug: "nixe-transfer",
+    nyx_core::app::init(nyx_core::app::App {
+        slug: "nyx-transfer",
         name: "Transfer",
     });
     let app = gtk::Application::builder().application_id(APP_ID).build();
@@ -117,14 +117,14 @@ fn main() -> glib::ExitCode {
 }
 
 fn build(app: &gtk::Application) {
-    nixe_theme::install(nixe_theme::Style {
+    nyx_theme::install(nyx_theme::Style {
         window_class: "transfer-window",
         base_skip: &[],
         css: include_str!("style.css"),
         no_glow_css: "",
         extra_colors: None,
-        prefs: || nixe_theme::ThemePrefs {
-            mode: nixe_theme::ThemeMode::Omarchy,
+        prefs: || nyx_theme::ThemePrefs {
+            mode: nyx_theme::ThemeMode::Omarchy,
             theme: "tokyo-night".into(),
             glow: false,
             reduce_motion: false,
@@ -140,9 +140,9 @@ fn build(app: &gtk::Application) {
     window.add_css_class("transfer-window");
     window.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
     window.set_icon_name(Some(APP_ID));
-    nixe_ui::keys::install(
+    nyx_ui::keys::install(
         &window,
-        nixe_ui::keys::Common {
+        nyx_ui::keys::Common {
             close: false,
             ..Default::default()
         },
@@ -1204,7 +1204,7 @@ fn install_row_actions(
                     &gtk::gdk::FileList::from_array(&files).to_value(),
                 ));
             }
-            let payload = format!("nixe-transfer:{}", serde_json::to_string(&sources).ok()?);
+            let payload = format!("nyx-transfer:{}", serde_json::to_string(&sources).ok()?);
             Some(gtk::gdk::ContentProvider::for_value(&payload.to_value()))
         });
     }
@@ -1342,7 +1342,7 @@ fn install_drop_targets(state: Rc<RefCell<State>>, index: usize, list: &gtk::Lis
             let Ok(payload) = value.get::<String>() else {
                 return false;
             };
-            let Some(json) = payload.strip_prefix("nixe-transfer:") else {
+            let Some(json) = payload.strip_prefix("nyx-transfer:") else {
                 return false;
             };
             let Ok(sources) = serde_json::from_str::<Vec<Location>>(json) else {
@@ -2404,7 +2404,7 @@ fn trust_host(parent: &gtk::Window, host: String, port: String, known: gtk::Entr
                     .default_button(0)
                     .build();
                 if prompt.choose_future(Some(&parent)).await == Ok(1) {
-                    let path = nixe_core::paths::data_dir().join("ssh/known_hosts");
+                    let path = nyx_core::paths::data_dir().join("ssh/known_hosts");
                     if let Some(dir) = path.parent() {
                         let _ = std::fs::create_dir_all(dir);
                     }

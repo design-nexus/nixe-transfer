@@ -433,7 +433,7 @@ impl State {
                 &(
                     "Transfer",
                     0u32,
-                    "io.github.design_nexus.nixe.Transfer",
+                    "io.github.design_nexus.nyx.Transfer",
                     summary,
                     body,
                     Vec::<String>::new(),
@@ -445,7 +445,7 @@ impl State {
     }
 }
 
-#[interface(name = "io.github.design_nexus.nixe.Transfer1")]
+#[interface(name = "io.github.design_nexus.nyx.Transfer1")]
 impl Service {
     async fn enqueue(&self, source: &str, destination: &str) -> zbus::fdo::Result<String> {
         let source: Location = serde_json::from_str(source).map_err(error)?;

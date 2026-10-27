@@ -6,14 +6,14 @@
    copy in either direction, saved connections, queue, progress, cancellation,
    retries, clear errors, connection tabs, drag-and-drop, pane navigation,
    queue speed/ETA, and installation.
-3. **Reliability:** `nixe-transferd`, SQLite job state, versioned D-Bus IPC,
+3. **Reliability:** `nyx-transferd`, SQLite job state, versioned D-Bus IPC,
    restart recovery, notifications, and history are implemented. Safe active
    transfer resume remains backend-specific future work.
 4. **Universal locations:** mounted SMB/NFS via local paths and imports from
-   the user's existing rclone config are implemented. Nixe Cloud public API
+   the user's existing rclone config are implemented. Nyx Cloud public API
    integration and finer backend capability discovery remain.
 5. **Synchronization:** dry-run comparison, queued copy/mirror, rclone bisync,
    conflict handling, filters, and saved workflows are implemented. Scheduling
    and richer comparison/verification controls remain later work.
-6. **Integration:** Nixe Files/Drive requests, versioned shared contracts,
+6. **Integration:** Nyx Files/Drive requests, versioned shared contracts,
    systemd user timers for scheduling, and adapters only where needed.

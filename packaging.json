@@ -2,8 +2,8 @@
   "application": "transfer",
   "directory": ".",
   "packages": [
-    "nixe-transfer",
-    "nixe-transferd"
+    "nyx-transfer",
+    "nyx-transferd"
   ],
   "manifest": "Cargo.toml",
   "prepare": [],
@@ -14,9 +14,9 @@
       "test",
       "--locked",
       "-p",
-      "nixe-transfer",
+      "nyx-transfer",
       "-p",
-      "nixe-transferd"
+      "nyx-transferd"
     ]
   ]
 }

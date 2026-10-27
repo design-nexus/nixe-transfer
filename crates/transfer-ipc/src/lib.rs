@@ -1,11 +1,11 @@
 //! Versioned session-bus contract. Paths and job metadata only; no credentials.
-pub const BUS: &str = "io.github.design_nexus.nixe.Transfer1";
-pub const PATH: &str = "/io/github/design_nexus/nixe/Transfer1";
+pub const BUS: &str = "io.github.design_nexus.nyx.Transfer1";
+pub const PATH: &str = "/io/github/design_nexus/nyx/Transfer1";
 
 #[zbus::proxy(
-    interface = "io.github.design_nexus.nixe.Transfer1",
-    default_service = "io.github.design_nexus.nixe.Transfer1",
-    default_path = "/io/github/design_nexus/nixe/Transfer1"
+    interface = "io.github.design_nexus.nyx.Transfer1",
+    default_service = "io.github.design_nexus.nyx.Transfer1",
+    default_path = "/io/github/design_nexus/nyx/Transfer1"
 )]
 pub trait Transfer {
     fn enqueue(&self, source: &str, destination: &str) -> zbus::Result<String>;

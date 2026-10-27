@@ -10,8 +10,8 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-BUS = "io.github.design_nexus.nixe.Transfer1"
-OBJECT = "/io/github/design_nexus/nixe/Transfer1"
+BUS = "io.github.design_nexus.nyx.Transfer1"
+OBJECT = "/io/github/design_nexus/nyx/Transfer1"
 
 
 def call(method, *args):
@@ -43,7 +43,7 @@ def jobs():
     return {job["id"]: job for job in json.loads(call("ListJobs"))}
 
 
-with tempfile.TemporaryDirectory(prefix="nixe-transfer-service-") as temp:
+with tempfile.TemporaryDirectory(prefix="nyx-transfer-service-") as temp:
     base = Path(temp)
     os.environ["HOME"] = str(base)
     os.environ["XDG_DATA_HOME"] = str(base / "data")
@@ -52,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix="nixe-transfer-service-") as temp:
     destination = base / "destination.txt"
 
     def start():
-        return subprocess.Popen([str(ROOT / "target/debug/nixe-transferd")],
+        return subprocess.Popen([str(ROOT / "target/debug/nyx-transferd")],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     daemon = start()
@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix="nixe-transfer-service-") as temp:
             assert "changed since preview" in str(exc)
         assert (sync_target / "surprise.txt").exists()
 
-        db = base / "data/nixe-transfer/connections.db"
+        db = base / "data/nyx-transfer/connections.db"
         def save_workflow(workflow):
             with sqlite3.connect(db) as conn:
                 conn.execute("INSERT OR REPLACE INTO workflows (id,metadata) VALUES (?,?)",
@@ -162,7 +162,7 @@ with tempfile.TemporaryDirectory(prefix="nixe-transfer-service-") as temp:
         daemon.terminate()
         daemon.wait(timeout=5)
 
-    db = base / "data/nixe-transfer/connections.db"
+    db = base / "data/nyx-transfer/connections.db"
     now = int(time.time())
     for ident, state, target in [("queued-restart", "Queued", "queued.txt"),
                                  ("running-restart", "Running", "interrupted.txt"),

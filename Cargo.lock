@@ -856,77 +856,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-core"
-version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-core.git?rev=87682e6c936b6a4f006639b1a1c099e96346c07c#87682e6c936b6a4f006639b1a1c099e96346c07c"
-dependencies = [
- "anyhow",
- "gtk4",
- "serde",
- "serde_json",
- "toml",
-]
-
-[[package]]
-name = "nixe-theme"
-version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-design.git?rev=b8204de80644e263e32783602f2e0ae393578c9e#b8204de80644e263e32783602f2e0ae393578c9e"
-dependencies = [
- "gtk4",
- "nixe-core",
- "serde",
- "toml",
-]
-
-[[package]]
-name = "nixe-transfer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gtk4",
- "nixe-core",
- "nixe-theme",
- "nixe-ui",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "transfer-core",
- "transfer-ipc",
- "transfer-rclone",
- "transfer-storage",
- "uuid",
- "zbus",
-]
-
-[[package]]
-name = "nixe-transferd"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "transfer-core",
- "transfer-ipc",
- "transfer-rclone",
- "transfer-storage",
- "uuid",
- "zbus",
-]
-
-[[package]]
-name = "nixe-ui"
-version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-design.git?rev=b8204de80644e263e32783602f2e0ae393578c9e#b8204de80644e263e32783602f2e0ae393578c9e"
-dependencies = [
- "gtk4",
- "nixe-core",
- "nixe-theme",
-]
-
-[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1005,6 +934,77 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "nyx-core"
+version = "0.1.0"
+source = "git+https://github.com/design-nexus/nyx-core.git?rev=52cba5e27a3dd5f00c780f53e423302b4b5f9c9c#52cba5e27a3dd5f00c780f53e423302b4b5f9c9c"
+dependencies = [
+ "anyhow",
+ "gtk4",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
+name = "nyx-theme"
+version = "0.1.0"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=938c638951a53f5874a8276d07ac9dcd68b191ad#938c638951a53f5874a8276d07ac9dcd68b191ad"
+dependencies = [
+ "gtk4",
+ "nyx-core",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "nyx-transfer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gtk4",
+ "nyx-core",
+ "nyx-theme",
+ "nyx-ui",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "transfer-core",
+ "transfer-ipc",
+ "transfer-rclone",
+ "transfer-storage",
+ "uuid",
+ "zbus",
+]
+
+[[package]]
+name = "nyx-transferd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "transfer-core",
+ "transfer-ipc",
+ "transfer-rclone",
+ "transfer-storage",
+ "uuid",
+ "zbus",
+]
+
+[[package]]
+name = "nyx-ui"
+version = "0.1.0"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=938c638951a53f5874a8276d07ac9dcd68b191ad#938c638951a53f5874a8276d07ac9dcd68b191ad"
+dependencies = [
+ "gtk4",
+ "nyx-core",
+ "nyx-theme",
 ]
 
 [[package]]

@@ -2,16 +2,16 @@
 
 ## Existing suite boundaries
 
-The Nixe umbrella repository is a suite coordinator. `nixe-core` supplies app
-identity and XDG paths; `nixe-design` supplies shared GTK4 styling and widgets.
-Nixe Files is a separate file manager and is not a dependency. `nixe-cloud`
+The Nyx umbrella repository is a suite coordinator. `nyx-core` supplies app
+identity and XDG paths; `nyx-design` supplies shared GTK4 styling and widgets.
+Nyx Files is a separate file manager and is not a dependency. `nyx-cloud`
 exposes account metadata and FUSE mounts over `Cloud1`; it has no general
 transfer API. Transfer does not modify those repositories or Cloud's rclone
 configuration.
 
 ## Transfer service
 
-The `nixe-transferd` user service owns a Tokio worker and a bounded job queue.
+The `nyx-transferd` user service owns a Tokio worker and a bounded job queue.
 `transfer-core` defines typed locations, entries, profiles, state, and errors.
 `transfer-rclone` translates those operations to managed rclone subprocesses.
 `transfer-storage` owns the SQLite and Secret Service access. `transfer-ipc`
@@ -20,8 +20,8 @@ submits jobs and reads their state through D-Bus; closing it leaves transfers
 running. Both browser panes use the same backend interface and can show any
 location.
 
-`Transfer1` uses bus/interface `io.github.design_nexus.nixe.Transfer1` and
-object `/io/github/design_nexus/nixe/Transfer1`. `Enqueue` accepts source and
+`Transfer1` uses bus/interface `io.github.design_nexus.nyx.Transfer1` and
+object `/io/github/design_nexus/nyx/Transfer1`. `Enqueue` accepts source and
 destination `Location` JSON and returns a job ID. `ListJobs` returns
 `JobSnapshot` JSON with byte counts, speed, and ETA when rclone reports them.
 `Pause`, `Resume`, `Cancel`, `Retry`, and `ClearCompleted`
@@ -51,7 +51,7 @@ certificate checking stays enabled. Plain FTP is an explicit connection type.
 Imported rclone profiles are a separate boundary: SQLite stores the remote name
 and path to the user's rclone config, while rclone reads and may refresh that
 file during operations. Transfer never copies those provider credentials or
-reads Nixe Cloud's private configuration. The adapter uses one external config
+reads Nyx Cloud's private configuration. The adapter uses one external config
 per operation and rejects a pair of imported remotes with different config
 paths.
 
@@ -68,7 +68,7 @@ Two jobs may run concurrently, but the same destination is serialized. Transient
 network failures receive two bounded retries with exponential delay. Completion
 and failure notifications use the desktop notification service.
 
-Future direct Nixe Cloud integration will use public Cloud APIs or mount paths
+Future direct Nyx Cloud integration will use public Cloud APIs or mount paths
 without reading Cloud's private credentials. A copy into a Cloud FUSE mount is
 not yet treated as proof that the cloud upload itself finished.
 
