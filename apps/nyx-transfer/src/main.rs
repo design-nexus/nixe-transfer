@@ -9,7 +9,9 @@ use transfer_storage as store;
 mod workflows;
 
 const APP_ID: &str = "io.github.design_nexus.nyx.Transfer";
-const CONTROL_SIZE: i32 = 36;
+const CONTROL_SIZE: i32 = 32;
+/// The gap between the two panes, which holds the copy buttons.
+const COPY_GAP: i32 = 76;
 
 fn square_control(widget: &impl IsA<gtk::Widget>) {
     widget.add_css_class("square-button");
@@ -111,12 +113,16 @@ fn main() -> glib::ExitCode {
         slug: "nyx-transfer",
         name: "Transfer",
     });
-    let app = gtk::Application::builder().application_id(APP_ID).build();
+    // Developer aid: a different id gives a separate instance (a test copy on a virtual
+    // monitor), so it doesn't hand its arguments to the copy that's open.
+    let id = std::env::var("NYX_TRANSFER_APP_ID").unwrap_or_else(|_| APP_ID.to_string());
+    let app = gtk::Application::builder().application_id(id).build();
     app.connect_activate(build);
     app.run()
 }
 
 fn build(app: &gtk::Application) {
+    nyx_theme::use_design_2();
     nyx_theme::install(nyx_theme::Style {
         window_class: "transfer-window",
         base_skip: &[],
@@ -134,8 +140,8 @@ fn build(app: &gtk::Application) {
     let window = gtk::ApplicationWindow::builder()
         .application(app)
         .title("Transfer")
-        .default_width(1150)
-        .default_height(750)
+        .default_width(1280)
+        .default_height(800)
         .build();
     window.add_css_class("transfer-window");
     window.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
@@ -157,31 +163,38 @@ fn build(app: &gtk::Application) {
     );
     let (sender, receiver) = std::sync::mpsc::channel();
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    toolbar.add_css_class("transfer-toolbar");
+    root.add_css_class("window-frame");
+    // One top bar: the app and its tabs, then the copy, connection and search actions.
+    let header = nyx_ui::chrome::app_header(&window, "folder-remote-symbolic", "Transfer");
+    let toolbar = header.end.clone();
+    toolbar.set_spacing(2);
     let activity_spinner = gtk::Spinner::new();
     let activity = gtk::Label::new(Some("No active transfers"));
     activity.add_css_class("dim-label");
-    let tab_strip = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    let tab_strip = gtk::Box::new(gtk::Orientation::Horizontal, 2);
     tab_strip.add_css_class("transfer-tabs");
     let tab_scroll = gtk::ScrolledWindow::builder()
         .child(&tab_strip)
-        .hexpand(true)
-        .min_content_width(100)
+        .propagate_natural_width(true)
+        .max_content_width(640)
         .build();
     tab_scroll.set_policy(gtk::PolicyType::External, gtk::PolicyType::Never);
-    toolbar.append(&tab_scroll);
+    tab_scroll.set_valign(gtk::Align::Center);
+    tab_strip.set_valign(gtk::Align::Center);
+    header.start.append(&tab_scroll);
+    // Copy between the panes, in the gap between them.
     let to_right = gtk::Button::from_icon_name("go-next-symbolic");
-    square_control(&to_right);
+    to_right.add_css_class("copy-button");
     to_right.set_tooltip_text(Some("Copy selected items from left to right"));
-    toolbar.append(&to_right);
     let to_left = gtk::Button::from_icon_name("go-previous-symbolic");
-    square_control(&to_left);
+    to_left.add_css_class("copy-button");
     to_left.set_tooltip_text(Some("Copy selected items from right to left"));
-    toolbar.append(&to_left);
-    let divider = gtk::Separator::new(gtk::Orientation::Vertical);
-    divider.add_css_class("toolbar-divider");
-    toolbar.append(&divider);
+    let copy_column = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    copy_column.add_css_class("copy-column");
+    copy_column.set_halign(gtk::Align::Center);
+    copy_column.set_valign(gtk::Align::Center);
+    copy_column.append(&to_right);
+    copy_column.append(&to_left);
     let new_connection = gtk::Button::from_icon_name("network-server-symbolic");
     square_control(&new_connection);
     new_connection.set_tooltip_text(Some("Create a server connection"));
@@ -202,8 +215,10 @@ fn build(app: &gtk::Application) {
     square_control(&search_button);
     search_button.set_tooltip_text(Some("Search the active pane (Ctrl+F)"));
     toolbar.append(&search_button);
-    root.append(&toolbar);
-    let browser = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    root.append(&header.root);
+    // Two equal panes with a gap between them for the copy buttons.
+    let browser = gtk::Box::new(gtk::Orientation::Horizontal, COPY_GAP);
+    browser.add_css_class("transfer-browser");
     browser.set_hexpand(true);
     browser.set_vexpand(true);
     browser.set_homogeneous(true);
@@ -211,7 +226,10 @@ fn build(app: &gtk::Application) {
     let (right_ui, right) = make_pane(&profiles);
     browser.append(&left_ui);
     browser.append(&right_ui);
-    root.append(&browser);
+    let browser_overlay = gtk::Overlay::new();
+    browser_overlay.set_child(Some(&browser));
+    browser_overlay.add_overlay(&copy_column);
+    root.append(&browser_overlay);
     let queue_header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     queue_header.add_css_class("queue-head");
     let section = gtk::Label::new(Some("TRANSFERS"));
@@ -220,9 +238,13 @@ fn build(app: &gtk::Application) {
     let queue_toggle = gtk::Button::from_icon_name("pan-end-symbolic");
     square_control(&queue_toggle);
     queue_header.append(&queue_toggle);
-    let queue_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    queue_spacer.set_hexpand(true);
-    queue_header.append(&queue_spacer);
+    // What the panes are doing ("67 items", errors), as quiet text beside the queue.
+    let status = gtk::Label::new(Some("Choose a location in each pane."));
+    status.add_css_class("transfer-status");
+    status.set_xalign(0.0);
+    status.set_hexpand(true);
+    status.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    queue_header.append(&status);
     queue_header.append(&activity_spinner);
     queue_header.append(&activity);
     let clear_completed = gtk::Button::from_icon_name("edit-clear-symbolic");
@@ -238,8 +260,8 @@ fn build(app: &gtk::Application) {
     queue.append(&empty_queue);
     let queue_scroll = gtk::ScrolledWindow::builder()
         .child(&queue)
-        .min_content_height(80)
-        .max_content_height(160)
+        .min_content_height(200)
+        .max_content_height(320)
         .vexpand(false)
         .build();
     queue_scroll.add_css_class("transfer-queue-view");
@@ -248,10 +270,6 @@ fn build(app: &gtk::Application) {
     queue_revealer.set_reveal_child(false);
     queue_revealer.set_child(Some(&queue_scroll));
     root.append(&queue_revealer);
-    let status = gtk::Label::new(Some("Choose a location in each pane."));
-    status.add_css_class("transfer-status");
-    status.set_xalign(0.0);
-    root.append(&status);
     window.set_child(Some(&root));
     let panes = vec![left, right];
     let first_tab = TabSnapshot::from_panes(&panes);
@@ -487,6 +505,7 @@ fn render_tabs(state: Rc<RefCell<State>>) {
     for (index, tab) in tabs.iter().enumerate() {
         let group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         group.add_css_class("transfer-tab");
+        group.set_valign(gtk::Align::Center);
         if index == active {
             group.add_css_class("active");
         }
@@ -502,7 +521,8 @@ fn render_tabs(state: Rc<RefCell<State>>) {
             location_name(&tab.locations[1], &profiles)
         )));
         let close = gtk::Button::from_icon_name("window-close-symbolic");
-        square_control(&close);
+        close.add_css_class("tab-close");
+        close.set_valign(gtk::Align::Center);
         close.set_tooltip_text(Some("Close tab"));
         close.set_sensitive(tabs.len() > 1);
         group.append(&select);
@@ -518,7 +538,8 @@ fn render_tabs(state: Rc<RefCell<State>>) {
         }
     }
     let add = gtk::Button::from_icon_name("list-add-symbolic");
-    square_control(&add);
+    add.add_css_class("tab-add");
+    add.set_valign(gtk::Align::Center);
     add.set_tooltip_text(Some("New tab (Ctrl+T)"));
     strip.append(&add);
     add.connect_clicked(move |_| new_tab(state.clone()));
