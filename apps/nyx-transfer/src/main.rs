@@ -6,6 +6,7 @@ use transfer_core::{
     SyncAction, SyncMode, SyncPreview,
 };
 use transfer_storage as store;
+mod settings;
 mod workflows;
 
 const APP_ID: &str = "io.github.design_nexus.nyx.Transfer";
@@ -129,13 +130,8 @@ fn build(app: &gtk::Application) {
         css: include_str!("style.css"),
         no_glow_css: "",
         extra_colors: None,
-        prefs: || nyx_theme::ThemePrefs {
-            mode: nyx_theme::ThemeMode::Omarchy,
-            theme: "tokyo-night".into(),
-            glow: false,
-            reduce_motion: false,
-        },
-        set_theme: None,
+        prefs: settings::style_prefs,
+        set_theme: Some(settings::set_theme),
     });
     let window = gtk::ApplicationWindow::builder()
         .application(app)
@@ -149,6 +145,7 @@ fn build(app: &gtk::Application) {
     nyx_ui::keys::install(
         &window,
         nyx_ui::keys::Common {
+            settings: Some(settings::open),
             close: false,
             ..Default::default()
         },
@@ -215,6 +212,7 @@ fn build(app: &gtk::Application) {
     square_control(&search_button);
     search_button.set_tooltip_text(Some("Search the active pane (Ctrl+F)"));
     toolbar.append(&search_button);
+    toolbar.append(&nyx_ui::chrome::settings_button(settings::open));
     root.append(&header.root);
     // Two equal panes with a gap between them for the copy buttons.
     let browser = gtk::Box::new(gtk::Orientation::Horizontal, COPY_GAP);
@@ -270,7 +268,10 @@ fn build(app: &gtk::Application) {
     queue_revealer.set_reveal_child(false);
     queue_revealer.set_child(Some(&queue_scroll));
     root.append(&queue_revealer);
-    window.set_child(Some(&root));
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(&root));
+    window.set_child(Some(&overlay));
+    settings::attach(&overlay, &window);
     let panes = vec![left, right];
     let first_tab = TabSnapshot::from_panes(&panes);
     let state = Rc::new(RefCell::new(State {
@@ -328,6 +329,13 @@ fn build(app: &gtk::Application) {
         keys.connect_key_pressed(move |_, key, _, modifiers| {
             let ctrl = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
             let alt = modifiers.contains(gtk::gdk::ModifierType::ALT_MASK);
+            if nyx_ui::settings_card::is_open() {
+                if key == gtk::gdk::Key::Escape {
+                    nyx_ui::settings_card::escape();
+                    return glib::Propagation::Stop;
+                }
+                return glib::Propagation::Proceed;
+            }
             match key {
                 gtk::gdk::Key::q if ctrl => w.close(),
                 gtk::gdk::Key::w if ctrl => {

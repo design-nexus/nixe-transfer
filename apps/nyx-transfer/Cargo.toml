@@ -10,10 +10,11 @@ transfer-rclone = { path = "../../crates/transfer-rclone" }
 transfer-storage = { path = "../../crates/transfer-storage" }
 transfer-ipc = { path = "../../crates/transfer-ipc" }
 nyx-core = { git = "https://github.com/design-nexus/nyx-core.git", rev = "52cba5e27a3dd5f00c780f53e423302b4b5f9c9c" }
-nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "9465abd2daa4433bc6ba47820417b57f62cdfb82" }
-nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "9465abd2daa4433bc6ba47820417b57f62cdfb82" }
+nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "34e9acee71ea9af4e87a43a678f98048dccdbfdb" }
+nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "34e9acee71ea9af4e87a43a678f98048dccdbfdb" }
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 anyhow.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
