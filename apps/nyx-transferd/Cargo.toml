@@ -11,6 +11,7 @@ transfer-storage = { path = "../../crates/transfer-storage" }
 transfer-ipc = { path = "../../crates/transfer-ipc" }
 anyhow.workspace = true
 serde_json.workspace = true
+toml = "1.1"
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true

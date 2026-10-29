@@ -704,8 +704,10 @@ fn make_pane(profiles: &[ConnectionProfile]) -> (gtk::Box, Pane) {
     controls.append(&up);
     controls.append(&refresh);
     let sort = gtk::DropDown::from_strings(&["Name", "Size", "Modified"]);
+    sort.set_selected(settings::sort_index());
     sort.set_tooltip_text(Some("Sort directory"));
     let hidden = gtk::CheckButton::with_label("Show hidden files");
+    hidden.set_active(settings::get().show_hidden);
     let view_options = gtk::Box::new(gtk::Orientation::Vertical, 8);
     view_options.add_css_class("view-options");
     view_options.append(&gtk::Label::new(Some("Sort by")));
@@ -734,7 +736,7 @@ fn make_pane(profiles: &[ConnectionProfile]) -> (gtk::Box, Pane) {
     let path = gtk::Entry::new();
     path.set_hexpand(true);
     path.set_valign(gtk::Align::Center);
-    path.set_text(&std::env::var("HOME").unwrap_or_else(|_| "/".into()));
+    path.set_text(&settings::start_folder().to_string_lossy());
     let path_stack = gtk::Stack::new();
     path_stack.set_hexpand(true);
     path_stack.add_named(&crumbs_scroll, Some("breadcrumbs"));
@@ -850,9 +852,7 @@ fn connect_pane(state: Rc<RefCell<State>>, index: usize) {
             }
             let selected = selector.selected();
             let location = if selected == 0 {
-                Location::Local(PathBuf::from(
-                    std::env::var("HOME").unwrap_or_else(|_| "/".into()),
-                ))
+                Location::Local(settings::start_folder())
             } else {
                 let state = s.borrow();
                 let Some(p) = state.profiles.get(selected as usize - 1) else {

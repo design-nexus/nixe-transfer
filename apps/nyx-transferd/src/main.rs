@@ -264,7 +264,7 @@ impl State {
             let retryable = matches!(&result, Err(TransferError::Network(_)));
             let retry_limit = match &job.operation {
                 JobOperation::Workflow { workflow, .. } => workflow.retry_limit,
-                _ => 2,
+                _ => integer_setting("retries", 2).min(5),
             };
             let retries = job.retries;
             if retryable && retries < retry_limit {
@@ -727,7 +727,7 @@ async fn main() -> Result<()> {
         scheduled: Mutex::new(HashSet::new()),
         active: Mutex::new(HashMap::new()),
         busy_destinations: Mutex::new(HashSet::new()),
-        permits: Semaphore::new(2),
+        permits: Semaphore::new(integer_setting("concurrent_transfers", 2).clamp(1, 4) as usize),
         bus: OnceLock::new(),
     });
     let bus = zbus::connection::Builder::session()?
@@ -749,4 +749,20 @@ async fn main() -> Result<()> {
     }
     std::future::pending::<()>().await;
     Ok(())
+}
+
+/// Read queue preferences shared with the Transfer application.
+fn integer_setting(key: &str, default: u32) -> u32 {
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".config"))
+        });
+    config
+        .and_then(|dir| std::fs::read_to_string(dir.join("nyx-transfer/settings.toml")).ok())
+        .and_then(|text| text.parse::<toml::Table>().ok())
+        .and_then(|table| table.get(key)?.as_integer())
+        .and_then(|n| u32::try_from(n).ok())
+        .unwrap_or(default)
 }
