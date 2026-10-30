@@ -1846,6 +1846,47 @@ fn handle_message(state: Rc<RefCell<State>>, message: Message) {
     }
 }
 
+
+/// Keep a way out visible even when the connection or workflow form scrolls.
+fn dismissible_dialog(window: &gtk::Window, label: &str) {
+    let content = window.child();
+    window.set_child(gtk::Widget::NONE);
+    let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    if let Some(content) = content {
+        content.set_vexpand(true);
+        layout.append(&content);
+    }
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.set_halign(gtk::Align::End);
+    actions.set_margin_top(8);
+    actions.set_margin_bottom(16);
+    actions.set_margin_start(16);
+    actions.set_margin_end(16);
+    let dismiss = gtk::Button::with_label(label);
+    dismiss.set_tooltip_text(Some(&format!("{label} (Esc)")));
+    let weak = window.downgrade();
+    dismiss.connect_clicked(move |_| {
+        if let Some(window) = weak.upgrade() {
+            window.close();
+        }
+    });
+    actions.append(&dismiss);
+    layout.append(&actions);
+    window.set_child(Some(&layout));
+    let keys = gtk::EventControllerKey::new();
+    let weak = window.downgrade();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk::gdk::Key::Escape {
+            if let Some(window) = weak.upgrade() {
+                window.close();
+            }
+            return gtk::glib::Propagation::Stop;
+        }
+        gtk::glib::Propagation::Proceed
+    });
+    window.add_controller(keys);
+}
+
 fn sync_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>) {
     if let Some(existing) = &state.borrow().sync_dialog {
         existing.window.present();
@@ -2011,6 +2052,7 @@ fn sync_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>) {
             s.borrow_mut().sync_dialog = None;
         });
     }
+    dismissible_dialog(&window, "Cancel");
     window.present();
 }
 
@@ -2166,6 +2208,7 @@ fn import_remote_dialog(
         let _ = state.borrow().sender.send(Message::Saved(result));
         close.close();
     });
+    dismissible_dialog(&dialog, "Cancel");
     dialog.present();
 }
 
@@ -2383,6 +2426,7 @@ fn connection_dialog(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>)
         });
         close.close();
     });
+    dismissible_dialog(&dialog, "Cancel");
     dialog.present();
 }
 fn trust_host(parent: &gtk::Window, host: String, port: String, known: gtk::Entry) {

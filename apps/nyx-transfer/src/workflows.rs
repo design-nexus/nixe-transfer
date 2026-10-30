@@ -191,6 +191,7 @@ pub(super) fn manager(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>
             });
         });
     }
+    dismissible_dialog(&window, "Close");
     window.present();
 }
 
@@ -510,6 +511,7 @@ fn editor(parent: &gtk::ApplicationWindow, state: Rc<RefCell<State>>, saved: Opt
             s.borrow_mut().workflow_dialog = None;
         });
     }
+    dismissible_dialog(&window, "Cancel");
     window.present();
 }
 
